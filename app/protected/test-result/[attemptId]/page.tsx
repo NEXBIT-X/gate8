@@ -160,7 +160,7 @@ const TestResultPage = () => {
                                         {response.is_correct ? 'Correct' : 'Incorrect'}
                                     </span>
                                     <span className="text-sm text-gray-400">
-                                        {response.marks_obtained}/{response.question.mark} pts
+                                        {response.marks_obtained}/{response.question.marks} pts
                                     </span>
                                 </div>
                             </div>

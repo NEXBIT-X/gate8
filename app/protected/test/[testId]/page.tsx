@@ -77,6 +77,33 @@ const TestInterface = () => {
         }
     }, [testId]);
 
+    const handleCompleteTest = useCallback(async () => {
+        if (!attemptId || isSubmitting) return;
+
+        setIsSubmitting(true);
+        try {
+            const response = await fetch('/api/tests/complete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ attemptId }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to complete test');
+            }
+
+            router.push(`/protected/test/${testId}/result?attemptId=${attemptId}`);
+        } catch (error) {
+            console.error('Error completing test:', error);
+            setError(error instanceof Error ? error.message : 'Failed to complete test');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [attemptId, isSubmitting, router, testId]);
+
     useEffect(() => {
         if (timeRemaining <= 0) return;
 
@@ -130,34 +157,6 @@ const TestInterface = () => {
             return newSet;
         });
     };
-
-    const handleCompleteTest = useCallback(async () => {
-        if (!attemptId || isSubmitting) return;
-
-        setIsSubmitting(true);
-        try {
-            const response = await fetch('/api/tests/complete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ attemptId }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to complete test');
-            }
-
-            router.push(`/protected/test/${testId}/result?attemptId=${attemptId}`);
-        } catch (error) {
-            console.error('Error completing test:', error);
-            setError(error instanceof Error ? error.message : 'Failed to complete test');
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [attemptId, isSubmitting, router, testId]);
-
     const formatTime = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);

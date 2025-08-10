@@ -1,9 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+interface RouteParams {
+  params: Promise<{ attemptId: string }>;
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { attemptId: string } }
+  { params }: RouteParams
 ) {
   try {
     const supabase = await createClient();
@@ -15,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { attemptId } = params;
+    const { attemptId } = await params;
 
     // Get the test attempt with test details
     const { data: attempt, error: attemptError } = await supabase
