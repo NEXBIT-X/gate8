@@ -4,11 +4,19 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+interface APIResult {
+  status?: number;
+  ok?: boolean;
+  data?: unknown;
+  error?: string;
+  timestamp: string;
+}
+
 export default function DebugPage() {
-  const [results, setResults] = useState<Record<string, any>>({});
+  const [results, setResults] = useState<Record<string, APIResult>>({});
   const [loading, setLoading] = useState(false);
 
-  const testAPI = async (endpoint: string, method: string = 'GET', body?: any) => {
+  const testAPI = async (endpoint: string, method: string = 'GET', body?: unknown) => {
     setLoading(true);
     try {
       const options: RequestInit = {
@@ -30,7 +38,7 @@ export default function DebugPage() {
         data = { rawResponse: text };
       }
 
-      setResults((prev: Record<string, any>) => ({
+      setResults((prev: Record<string, APIResult>) => ({
         ...prev,
         [endpoint]: {
           status: response.status,
@@ -40,7 +48,7 @@ export default function DebugPage() {
         }
       }));
     } catch (error) {
-      setResults((prev: Record<string, any>) => ({
+      setResults((prev: Record<string, APIResult>) => ({
         ...prev,
         [endpoint]: {
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -72,7 +80,7 @@ export default function DebugPage() {
       </div>
 
       <div className="space-y-4">
-        {Object.entries(results).map(([endpoint, result]: [string, any]) => (
+        {Object.entries(results).map(([endpoint, result]: [string, APIResult]) => (
           <Card key={endpoint}>
             <CardHeader>
               <CardTitle className="text-lg">{endpoint}</CardTitle>

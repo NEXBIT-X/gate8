@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Clock, Award, ArrowLeft, BookOpen } from 'lucide-react';
+import { CheckCircle, XCircle, Award, ArrowLeft, BookOpen } from 'lucide-react';
 
 interface TestResult {
   attempt: {
@@ -26,7 +26,7 @@ interface TestResult {
   responses: Array<{
     id: string;
     question_id: string;
-    user_answer: any;
+    user_answer: string | string[] | number;
     is_correct: boolean;
     marks_obtained: number;
     question_type: string;
@@ -36,7 +36,7 @@ interface TestResult {
       question_type: string;
       options?: string[];
       correct_answers?: string[];
-      numerical_answer_range?: any;
+      numerical_answer_range?: { min: number; max: number } | { exact: number };
       positive_marks: number;
       negative_marks: number;
       explanation?: string;
@@ -55,9 +55,7 @@ interface TestResult {
 }
 
 export default function TestResultPage() {
-  const params = useParams();
   const router = useRouter();
-  const testId = params.testId as string;
   const [result, setResult] = useState<TestResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,9 +142,9 @@ export default function TestResultPage() {
           <div className="space-y-2">
             <div><strong>Your Answer:</strong> {user_answer || 'Not answered'}</div>
             <div><strong>Correct Range:</strong> 
-              {question.numerical_answer_range?.exact !== undefined 
-                ? question.numerical_answer_range.exact 
-                : `${question.numerical_answer_range?.min} - ${question.numerical_answer_range?.max}`}
+              {'exact' in (question.numerical_answer_range || {})
+                ? (question.numerical_answer_range as { exact: number }).exact 
+                : `${'min' in (question.numerical_answer_range || {}) ? (question.numerical_answer_range as { min: number; max: number }).min : 'N/A'} - ${'max' in (question.numerical_answer_range || {}) ? (question.numerical_answer_range as { min: number; max: number }).max : 'N/A'}`}
             </div>
           </div>
         );

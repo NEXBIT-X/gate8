@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate and prepare questions for insertion
-    const questionsToInsert = questions.map((q: any, index: number) => {
+    const questionsToInsert = questions.map((q: { question_text: string; question_type: string; marks: number; negative_marks?: number; options?: string[]; correct_answer: string | string[] | number; question_number?: number }, index: number) => {
             // Validate each question
       if (!q.question_text || !q.question_type || q.marks === undefined) {
         throw new Error(`Question ${index + 1}: Missing required fields (question_text, question_type, marks)`);
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
         question_type: q.question_type,
         options,
         correct_answer,
-        marks: parseFloat(q.marks),
-        negative_marks: parseFloat(q.negative_marks) || 0,
+        marks: q.marks,
+        negative_marks: q.negative_marks || 0,
         // Note: question_number column doesn't exist in current schema
         // tag: q.question_number ? `Q${q.question_number}` : `Q${index + 1}`
       };

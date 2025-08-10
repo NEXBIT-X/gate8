@@ -46,15 +46,14 @@ export default async function AdminDashboard() {
     );
   }
 
-  let stats: AdminStats = {
-    totalUsers: 0,
-    totalTests: 0,
-    totalAttempts: 0,
-    activeTests: 0
-  };
-
   let tests: Test[] = [];
   const errors: string[] = [];
+
+  // Initialize stats that will be computed
+  let totalTests = 0;
+  let activeTests = 0;
+  const totalUsers = 0; // Can't reliably query this
+  const totalAttempts = 0; // Can't reliably query this
 
   try {
     // Get test statistics
@@ -68,18 +67,22 @@ export default async function AdminDashboard() {
       errors.push(`Failed to fetch tests: ${testError.message}`);
     } else {
       tests = testData || [];
-      stats.totalTests = tests.length;
-      stats.activeTests = tests.filter(t => t.is_active).length;
+      totalTests = tests.length;
+      activeTests = tests.filter(t => t.is_active).length;
     }
-
-    // For now, set user stats to 0 since we can't reliably query user_test_attempts
-    stats.totalUsers = 0;
-    stats.totalAttempts = 0;
 
   } catch (error) {
     console.error('Admin dashboard error:', error);
     errors.push(`System error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+
+  // Compute final stats
+  const stats: AdminStats = {
+    totalUsers,
+    totalTests,
+    totalAttempts,
+    activeTests
+  };
 
   return (
     <div className="min-h-screen bg-background">

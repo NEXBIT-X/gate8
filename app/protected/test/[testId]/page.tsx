@@ -1,8 +1,10 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { TestLoading, DatabaseLoading } from '@/components/loading';
+import { TestLoading } from '@/components/loading';
 import type { TestWithQuestions, UserTestAttempt, Question } from '@/lib/types';
+
+type AnswerValue = string | string[] | number;
 
 const TestInterface = () => {
     const router = useRouter();
@@ -14,7 +16,7 @@ const TestInterface = () => {
     const [test, setTest] = useState<TestWithQuestions | null>(null);
     const [attempt, setAttempt] = useState<UserTestAttempt | null>(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [selectedAnswers, setSelectedAnswers] = useState<Record<number, any>>({});
+    const [selectedAnswers, setSelectedAnswers] = useState<Record<number, AnswerValue>>({});
     const [markedForReview, setMarkedForReview] = useState<Set<number>>(new Set());
     const [timeRemaining, setTimeRemaining] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -89,9 +91,9 @@ const TestInterface = () => {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [timeRemaining]);
+    }, [timeRemaining, handleCompleteTest]);
 
-    const handleAnswerSelect = async (questionId: number, answer: any, questionType: string) => {
+    const handleAnswerSelect = async (questionId: number, answer: AnswerValue, questionType: string) => {
         if (!attemptId) return;
 
         setSelectedAnswers(prev => ({
@@ -129,7 +131,7 @@ const TestInterface = () => {
         });
     };
 
-    const handleCompleteTest = async () => {
+    const handleCompleteTest = useCallback(async () => {
         if (!attemptId || isSubmitting) return;
 
         setIsSubmitting(true);
@@ -154,7 +156,7 @@ const TestInterface = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };
+    }, [attemptId, isSubmitting, router, testId]);
 
     const formatTime = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
@@ -221,7 +223,7 @@ const TestInterface = () => {
     );
 
     const renderMSQ = (question: Question) => {
-        const currentAnswers = selectedAnswers[question.id] || [];
+        const currentAnswers = (selectedAnswers[question.id] as string[]) || [];
         
         return (
             <div className="space-y-4">

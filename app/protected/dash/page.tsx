@@ -6,6 +6,15 @@ import Clock from './widgets/clock';
 import { DatabaseLoading, LoadingSpinner } from '@/components/loading';
 import type { Test } from '@/lib/types';
 
+interface StartTestResponse {
+    attempt?: {
+        id: string;
+    };
+    error?: string;
+    details?: string;
+    raw?: string;
+}
+
 const DateTime = ({ iso }: { iso: string }) => {
     const stable = new Date(iso).toISOString().replace('T', ' ').replace(/:\d{2}\..+$/, '') + ' UTC';
     const [display, setDisplay] = useState(stable);
@@ -108,7 +117,7 @@ const Dash = () => {
             
             console.log('API Response status:', response.status);
             
-            let errorData: any = {};
+            let errorData: StartTestResponse = {};
             let responseText = '';
             
             try {
@@ -178,8 +187,8 @@ const Dash = () => {
                 if (!res.ok) throw new Error(res.statusText);
                 const data: Test[] = await res.json();
                 if (!cancelled) setTests(data);
-            } catch (e: any) {
-                if (!cancelled) setError(e.message || 'Failed to load tests');
+            } catch (e: unknown) {
+                if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load tests');
             }
         })();
         return () => { cancelled = true; };
