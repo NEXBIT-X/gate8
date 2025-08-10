@@ -1,18 +1,15 @@
 import Link from "next/link";
-
+import Logo from "@/components/logo";
 export function Hero() {
   return (
     <>
     <section className="flex flex-col items-center gap-10 py-16 text-center">
       <div className="flex items-center gap-3">
-        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-xl">
-          G8
-        </div>
-        <span className="text-3xl font-semibold tracking-tight">Mock Tests</span>
+        <Logo />        
       </div>
 
       <h1 className="text-4xl md:text-5xl font-bold tracking-tight max-w-3xl">
-        Practice. Analyze. Ace the GATE.
+        Mock Test Platform For Gate Exam 
       </h1>
 
       <p className="text-lg md:text-xl text-foreground/80 max-w-2xl">

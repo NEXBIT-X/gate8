@@ -247,10 +247,33 @@ const Dash = () => {
                     </div>
                 )}
                 {tests && (
-                    <div className="grid gap-6 md:grid-cols-3">
+                    <div className="space-y-8">
+                        {/* Practice Mock Test Tutorial Card */}
+                        <div className="rounded-lg border p-6 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 flex flex-col gap-3">
+                            <h2 className="text-xl font-semibold flex items-center gap-2">
+                                <span role="img" aria-label="rocket">🚀</span>
+                                Practice Mock Test (Tutorial)
+                            </h2>
+                            <p className="text-sm leading-relaxed max-w-3xl">
+                                New here? Try the practice mock test to understand how MCQ, MSQ and NAT questions work, how the timer looks, and how submissions feel—without affecting your real attempts. You get instant feedback and explanations.
+                            </p>
+                            <div className="flex flex-wrap gap-3 text-xs">
+                                <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-300">3 Questions</span>
+                                <span className="px-2 py-1 rounded bg-purple-500/10 text-purple-600 dark:text-purple-300">~5 min</span>
+                                <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">No Scoring Penalty</span>
+                            </div>
+                            <button
+                                onClick={() => router.push('/protected/practice')}
+                                className="w-fit mt-1 px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                Start Practice
+                            </button>
+                        </div>
+                        <div className="grid gap-6 md:grid-cols-3">
                         <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTest} startingTestId={startingTestId} />
                         <Section title="Upcoming Tests" items={upcoming} empty="No upcoming tests scheduled." />
                         <Section title="Ended Tests" items={ended} empty="No tests have ended yet." />
+                        </div>
                     </div>
                 )}
             </div>
