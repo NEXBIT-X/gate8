@@ -5,12 +5,23 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
     
+    // Log environment info for debugging
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
     // Get the current user
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
     if (userError || !user) {
       console.error('Authentication error:', userError);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ 
+        error: 'Unauthorized',
+        details: userError?.message || 'No user found',
+        hint: 'Please ensure you are logged in and try again'
+      }, { status: 401 });
     }
 
     const { testId } = await request.json();
@@ -54,6 +65,7 @@ export async function POST(request: NextRequest) {
     let existingAttemptError = null;
     
     try {
+      console.log('Checking for existing attempts for user:', user.id, 'test:', testId);
       const { data, error } = await supabase
         .from('user_test_attempts')
         .select('*')
@@ -63,18 +75,31 @@ export async function POST(request: NextRequest) {
         
       existingAttempt = data;
       existingAttemptError = error;
+      console.log('Attempt check result:', { hasData: !!data, errorCode: error?.code });
     } catch (tableError) {
       console.error('Table access error (table might not exist):', tableError);
       return NextResponse.json({ 
         error: 'Database not properly set up', 
-        details: 'The user_test_attempts table does not exist. Please run the database setup script.',
-        hint: 'Run the fix_test_attempts.sql script in your Supabase SQL Editor'
+        details: 'The user_test_attempts table does not exist or is not accessible.',
+        hint: 'Run the fix_production_auth.sql script in your Supabase SQL Editor',
+        sqlScript: 'fix_production_auth.sql'
       }, { status: 500 });
     }
 
     if (existingAttemptError && existingAttemptError.code !== 'PGRST116') {
       // PGRST116 means no rows found, which is fine
       console.error('Error checking existing attempt:', existingAttemptError);
+      
+      // Check for common RLS permission errors
+      if (existingAttemptError.code === '42501') {
+        return NextResponse.json({ 
+          error: 'Database permission error', 
+          details: 'Row Level Security policies are blocking access. This is a common deployment issue.',
+          hint: 'Run the fix_production_auth.sql script in your Supabase SQL Editor to fix RLS policies',
+          code: existingAttemptError.code,
+          sqlScript: 'fix_production_auth.sql'
+        }, { status: 500 });
+      }
       
       // Check if it's a table doesn't exist error
       if (existingAttemptError.code === '42P01' || existingAttemptError.message?.includes('does not exist')) {
