@@ -22,17 +22,14 @@ export async function POST(request: NextRequest) {
       title,
       description,
       duration_minutes,
-      total_questions,
-      max_marks,
       start_time,
-      end_time,
-      is_active = true
+      end_time
     } = body;
 
     // Validate required fields
-    if (!title || !description || !duration_minutes || !start_time || !end_time) {
+    if (!title || !duration_minutes || !start_time || !end_time) {
       return NextResponse.json(
-        { error: 'Missing required fields: title, description, duration_minutes, start_time, end_time' },
+        { error: 'Missing required fields: title, duration_minutes, start_time, end_time' },
         { status: 400 }
       );
     }

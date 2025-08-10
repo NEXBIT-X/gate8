@@ -1,10 +1,8 @@
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { CoolFooter } from "@/components/cool-footer";
 import { hasEnvVars } from "@/lib/utils";
 import { Logo } from "@/components/logo";
-import Link from "next/link";
 
 export default function ProtectedLayout({
   children,

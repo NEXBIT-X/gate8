@@ -1,4 +1,4 @@
-import { Github, Twitter, Linkedin, Mail, Code, Zap, Heart } from "lucide-react";
+import { Github, Twitter, Linkedin, Mail, Zap, Heart } from "lucide-react";
 import Link from "next/link";
 import { ThemeSwitcher } from "./theme-switcher";
 import Logo from "./logo";

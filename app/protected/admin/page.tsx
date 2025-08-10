@@ -54,7 +54,7 @@ export default async function AdminDashboard() {
   };
 
   let tests: Test[] = [];
-  let errors: string[] = [];
+  const errors: string[] = [];
 
   try {
     // Get test statistics

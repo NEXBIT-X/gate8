@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LoadingSpinner, DatabaseLoading } from '@/components/loading';
+import { LoadingSpinner } from '@/components/loading';
 
 interface Question {
   id: string;
@@ -90,12 +90,12 @@ const CreateTestPage = () => {
   };
 
   // Handle test form changes
-  const handleTestChange = (field: keyof TestFormData, value: any) => {
+  const handleTestChange = (field: keyof TestFormData, value: string | number | boolean) => {
     setTestData(prev => ({ ...prev, [field]: value }));
   };
 
   // Handle question changes
-  const handleQuestionChange = (field: keyof Question, value: any) => {
+  const handleQuestionChange = (field: keyof Question, value: string | string[] | number | undefined) => {
     setCurrentQuestion(prev => ({ ...prev, [field]: value }));
   };
 

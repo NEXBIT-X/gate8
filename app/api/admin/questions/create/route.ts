@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
 
     // Validate and prepare questions for insertion
     const questionsToInsert = questions.map((q: any, index: number) => {
-      // Validate required fields
+            // Validate each question
       if (!q.question_text || !q.question_type || q.marks === undefined) {
-        throw new Error(`Question ${index + 1}: Missing required fields`);
+        throw new Error(`Question ${index + 1}: Missing required fields (question_text, question_type, marks)`);
       }
 
       // Validate question type
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       success: true,
       questions: insertedQuestions,
       totalQuestions: insertedQuestions.length,
-      maxMarks: insertedQuestions.reduce((sum: number, q: any) => sum + q.marks, 0),
+      maxMarks: insertedQuestions.reduce((sum: number, q: { marks: number }) => sum + q.marks, 0),
       message: `Successfully created ${insertedQuestions.length} questions`
     });
 
