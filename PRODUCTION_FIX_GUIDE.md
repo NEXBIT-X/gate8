@@ -33,8 +33,8 @@ Ensure these environment variables are set in your Render dashboard:
 
 **Required Environment Variables:**
 - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anon key
-- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key (if using admin functions)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`): Your Supabase public key
+- `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`): Your Supabase service role (secret) key for admin/server operations
 
 **To set in Render:**
 1. Go to your Render dashboard
@@ -84,7 +84,7 @@ https://dashboard.render.com/web/srv-YOUR-SERVICE-ID/logs
 
 ### 7. Admin Access
 
-The system includes admin functionality for users with these emails:
+The system includes admin functionality for users with these emails (update in code as needed):
 - examapp109@gmail.com
 - abhijeethvn@gmail.com
 - admin@gate8.onrender.com
@@ -111,6 +111,6 @@ After implementing all fixes, test these endpoints:
 
 If issues persist:
 1. Check the complete error logs in both Render and Supabase
-2. Verify all environment variables are correctly set
+2. Verify all environment variables are correctly set (including new key names)
 3. Ensure the SQL script was executed without errors
 4. Test with a fresh user registration to isolate authentication issues

@@ -135,7 +135,7 @@ export default function DebugPage() {
           onClick={() => {
             const envData = {
               hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-              hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+              hasAnonKey: !!(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
               userAgent: navigator.userAgent,
               timestamp: new Date().toISOString()
             };

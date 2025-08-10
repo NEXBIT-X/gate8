@@ -4,18 +4,29 @@ import { createClient } from '@supabase/supabase-js';
 // This bypasses RLS policies
 export function createServiceRoleClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  if (!serviceRoleKey) {
-    console.warn('SUPABASE_SERVICE_ROLE_KEY not found, falling back to anon key');
-    // Fallback to anon key for development
-    return createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+  // New secret key name fallback support
+  const serviceRoleKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY || // hypothetical new naming
+    process.env.SUPABASE_SERVICE_KEY; // alternate common variant
+
+  const publicKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL env var');
   }
-  
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+
+  if (!serviceRoleKey) {
+    console.warn('Service role key not found (SUPABASE_SERVICE_ROLE_KEY / SUPABASE_SECRET_KEY). Falling back to public key.');
+    if (!publicKey) {
+      throw new Error('No service role key or public anon/publishable key available for Supabase client');
     }
+    return createClient(supabaseUrl, publicKey);
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
   });
 }
