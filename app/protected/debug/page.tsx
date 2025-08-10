@@ -64,6 +64,8 @@ export default function DebugPage() {
       <h1 className="text-2xl font-bold mb-6">API Debug Page</h1>
       
       <div className="grid gap-4 mb-6">
+        <h2 className="text-xl font-semibold">Test Management APIs</h2>
+        
         <Button 
           onClick={() => testAPI('/api/tests')} 
           disabled={loading}
@@ -76,6 +78,81 @@ export default function DebugPage() {
           disabled={loading}
         >
           Test POST /api/tests/start
+        </Button>
+
+        <h2 className="text-xl font-semibold mt-6">Admin APIs (Test Creation)</h2>
+        
+        <Button 
+          onClick={() => testAPI('/api/admin/tests/create', 'POST', {
+            title: 'Debug Test - ' + new Date().toLocaleTimeString(),
+            description: 'Test created from debug page',
+            duration_minutes: 60,
+            total_questions: 2,
+            max_marks: 4,
+            start_time: new Date().toISOString(),
+            end_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+            is_active: true
+          })} 
+          disabled={loading}
+          className="bg-purple-600 hover:bg-purple-700"
+        >
+          🔧 Test Admin: Create Test
+        </Button>
+        
+        <Button 
+          onClick={() => testAPI('/api/admin/questions/create', 'POST', {
+            testId: '11111111-2222-3333-4444-555555555555', // Use existing test ID
+            questions: [
+              {
+                question_text: 'Debug Question: What is 2 + 2?',
+                question_type: 'MCQ',
+                options: ['3', '4', '5', '6'],
+                correct_answer: '4',
+                marks: 2,
+                negative_marks: 0.5,
+                question_number: 1
+              },
+              {
+                question_text: 'Debug Question: Which are even numbers?',
+                question_type: 'MSQ',
+                options: ['1', '2', '3', '4'],
+                correct_answer: ['2', '4'],
+                marks: 2,
+                negative_marks: 0.5,
+                question_number: 2
+              }
+            ]
+          })} 
+          disabled={loading}
+          className="bg-purple-600 hover:bg-purple-700"
+        >
+          🔧 Test Admin: Create Questions
+        </Button>
+
+        <h2 className="text-xl font-semibold mt-6">Environment Check</h2>
+        
+        <Button 
+          onClick={() => {
+            const envData = {
+              hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+              hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+              userAgent: navigator.userAgent,
+              timestamp: new Date().toISOString()
+            };
+            setResults(prev => ({
+              ...prev,
+              'Environment Check': {
+                status: 200,
+                ok: true,
+                data: envData,
+                timestamp: new Date().toISOString()
+              }
+            }));
+          }} 
+          disabled={loading}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          🔍 Check Environment
         </Button>
       </div>
 

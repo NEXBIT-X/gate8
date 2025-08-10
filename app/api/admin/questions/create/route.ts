@@ -1,18 +1,24 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Check authentication
+    // Check authentication using regular client
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check admin permissions
-    const allowedEmails = ["abhijeethvn2006@gmail.com", "pavan03062006@gmail.com"];
+    const allowedEmails = [
+      "abhijeethvn2006@gmail.com", 
+      "pavan03062006@gmail.com",
+      "abhijeethvn@gmail.com",
+      "examapp109@gmail.com"
+    ];
     if (!user?.email || !allowedEmails.includes(user.email)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
@@ -28,8 +34,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify test exists
-    const { data: test, error: testError } = await supabase
+    // Verify test exists using admin client
+    const adminClient = createServiceRoleClient();
+    const { data: test, error: testError } = await adminClient
       .from('tests')
       .select('id')
       .eq('id', testId)
@@ -42,72 +49,105 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate and prepare questions for insertion
-    const questionsToInsert = questions.map((q: { question_text: string; question_type: string; marks: number; negative_marks?: number; options?: string[]; correct_answer: string | string[] | number; question_number?: number }, index: number) => {
-            // Validate each question
+    // Build normalized questions array (validation + base shape)
+    interface IncomingQuestion { question_text: string; question_type: string; marks: number; negative_marks?: number; options?: string[]; correct_answer: string | string[] | number; question_number?: number }
+    const normalized = questions.map((q: IncomingQuestion, index: number) => {
       if (!q.question_text || !q.question_type || q.marks === undefined) {
         throw new Error(`Question ${index + 1}: Missing required fields (question_text, question_type, marks)`);
       }
-
-      // Validate question type
       if (!['MCQ', 'MSQ', 'NAT'].includes(q.question_type)) {
         throw new Error(`Question ${index + 1}: Invalid question type`);
       }
-
-      // Validate correct answer format based on question type
-      let correct_answer;
+      let correct_answer: string | string[];
       if (q.question_type === 'MCQ') {
         if (!q.correct_answer || typeof q.correct_answer !== 'string') {
           throw new Error(`Question ${index + 1}: MCQ requires a single correct answer`);
         }
-        correct_answer = JSON.stringify(q.correct_answer);
+        correct_answer = q.correct_answer;
       } else if (q.question_type === 'MSQ') {
-        if (!q.correct_answer || !Array.isArray(q.correct_answer) || q.correct_answer.length === 0) {
-          throw new Error(`Question ${index + 1}: MSQ requires an array of correct answers`);
+        if (!Array.isArray(q.correct_answer) || q.correct_answer.length === 0) {
+          throw new Error(`Question ${index + 1}: MSQ requires a non-empty array of correct answers`);
         }
-        correct_answer = JSON.stringify(q.correct_answer);
-      } else if (q.question_type === 'NAT') {
+        correct_answer = q.correct_answer;
+      } else { // NAT
         if (q.correct_answer === undefined || q.correct_answer === '') {
           throw new Error(`Question ${index + 1}: NAT requires a correct answer`);
         }
-        correct_answer = JSON.stringify(q.correct_answer.toString());
+        correct_answer = q.correct_answer.toString();
       }
-
-      // Prepare options for MCQ/MSQ
-      let options = null;
+      let options: string[] | null = null;
       if (q.question_type === 'MCQ' || q.question_type === 'MSQ') {
         if (!q.options || !Array.isArray(q.options) || q.options.length === 0) {
           throw new Error(`Question ${index + 1}: ${q.question_type} requires options`);
         }
-        options = JSON.stringify(q.options);
+        options = q.options;
       }
-
       return {
         test_id: testId,
-        question: q.question_text, // Map question_text to question
+        question_text: q.question_text,
+        question: q.question_text, // legacy fallback if only 'question' column exists
         question_type: q.question_type,
         options,
         correct_answer,
         marks: q.marks,
         negative_marks: q.negative_marks || 0,
-        // Note: question_number column doesn't exist in current schema
-        // tag: q.question_number ? `Q${q.question_number}` : `Q${index + 1}`
+        question_number: q.question_number || (index + 1)
       };
     });
 
-    // Insert questions into database
-    const { data: insertedQuestions, error: questionsError } = await supabase
-      .from('questions')
-      .insert(questionsToInsert)
-      .select();
+    // Attempt adaptive insertion handling differing schemas
+    async function attemptInsert(variant: 'full' | 'no_number' | 'legacy'): Promise<{ data: any[] | null; error: any | null; used: string; }> {
+      // Use a broadly typed payload to allow removing fields per variant
+      let payload: any[] = normalized.map(q => ({ ...q }));
+      if (variant === 'no_number') {
+        payload = payload.map(q => { const { question_number, ...rest } = q; return { ...rest }; });
+      } else if (variant === 'legacy') {
+        // Remove question_text & question_number, keep 'question' only
+        payload = payload.map(q => { const { question_text, question_number, ...rest } = q; return { ...rest }; });
+      } else {
+        // 'full' variant removes the legacy 'question' duplicate
+        payload = payload.map(q => { const { question, ...rest } = q; return { ...rest }; });
+      }
+      console.log(`Trying insert variant: ${variant}`);
+      const { data, error } = await adminClient
+        .from('questions')
+        .insert(payload)
+        .select();
+      return { data, error, used: variant };
+    }
 
-    if (questionsError) {
-      console.error('Error creating questions:', questionsError);
+    let attemptOrder: ('full' | 'no_number' | 'legacy')[] = ['full', 'no_number', 'legacy'];
+    let insertedQuestions: any[] | null = null;
+    let lastError: any = null;
+    let usedVariant: string | null = null;
+
+    for (const variant of attemptOrder) {
+      const { data, error, used } = await attemptInsert(variant);
+      if (!error && data) { insertedQuestions = data; usedVariant = used; break; }
+      lastError = error;
+      if (error) {
+        console.error(`Insert variant '${variant}' failed:`, error);
+        const msg = error.message || '';
+        if (msg.includes("'question_number'")) {
+          // Skip to no_number variant next automatically
+          continue;
+        }
+        if (msg.includes("'question_text'")) {
+          // Force legacy next
+          attemptOrder = ['legacy'];
+          continue;
+        }
+      }
+    }
+
+    if (!insertedQuestions) {
       return NextResponse.json(
-        { error: 'Failed to create questions', details: questionsError.message },
+        { error: 'Failed to create questions', details: lastError?.message || 'Unknown', code: lastError?.code },
         { status: 500 }
       );
     }
+
+    console.log(`Created ${insertedQuestions.length} questions for test ${testId} using variant '${usedVariant}'`);
 
     // Update test with total questions and max marks
     // Note: These columns don't exist in current schema
@@ -115,7 +155,7 @@ export async function POST(request: NextRequest) {
     const totalQuestions = insertedQuestions.length;
     const maxMarks = insertedQuestions.reduce((sum: number, q: any) => sum + q.marks, 0);
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await adminClient
       .from('tests')
       .update({
         total_questions: totalQuestions,
@@ -129,14 +169,13 @@ export async function POST(request: NextRequest) {
     }
     */
 
-    console.log(`Created ${insertedQuestions.length} questions for test ${testId}`);
-
     return NextResponse.json({
       success: true,
       questions: insertedQuestions,
       totalQuestions: insertedQuestions.length,
-      maxMarks: insertedQuestions.reduce((sum: number, q: { marks: number }) => sum + q.marks, 0),
-      message: `Successfully created ${insertedQuestions.length} questions`
+      maxMarks: insertedQuestions.reduce((sum: number, q: { marks: number }) => sum + (Number(q.marks) || 0), 0),
+      variant: usedVariant,
+      message: `Successfully created ${insertedQuestions.length} questions (variant: ${usedVariant})`
     });
 
   } catch (error) {

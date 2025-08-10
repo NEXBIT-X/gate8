@@ -1,18 +1,24 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Check authentication
+    // Check authentication using regular client
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check admin permissions (you can customize this)
-    const allowedEmails = ["abhijeethvn2006@gmail.com", "pavan03062006@gmail.com"];
+    // Check admin permissions (updated email list)
+    const allowedEmails = [
+      "abhijeethvn2006@gmail.com", 
+      "pavan03062006@gmail.com",
+      "abhijeethvn@gmail.com",
+      "examapp109@gmail.com"
+    ];
     if (!user?.email || !allowedEmails.includes(user.email)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
@@ -23,8 +29,13 @@ export async function POST(request: NextRequest) {
       description,
       duration_minutes,
       start_time,
-      end_time
+      end_time,
+      total_questions,
+      max_marks,
+      is_active = true
     } = body;
+
+    console.log('Creating test with data:', { title, duration_minutes, total_questions, max_marks });
 
     // Validate required fields
     if (!title || !duration_minutes || !start_time || !end_time) {
@@ -45,40 +56,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create test in database
-    const { data: test, error: testError } = await supabase
+    // Create test in database with minimal required fields
+    const testInsertData = {
+      title,
+      duration_minutes,
+      start_time: startDate.toISOString(),
+      end_time: endDate.toISOString()
+    };
+
+    console.log('Inserting test data:', testInsertData);
+
+    // Use service role client for admin operations to bypass RLS
+    const adminClient = createServiceRoleClient();
+    const { data: test, error: testError } = await adminClient
       .from('tests')
-      .insert({
-        title,
-        // Map description to tags array for now
-        tags: description ? [description] : [],
-        duration_minutes,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        // Note: total_questions, max_marks, is_active will be added if columns exist
-        // For now, we'll store them in a future update
-      })
+      .insert(testInsertData)
       .select()
       .single();
 
     if (testError) {
       console.error('Error creating test:', testError);
-      
-      // If it's a column not found error, try adding the missing columns
-      if (testError.code === '42703') { // Column does not exist
-        console.log('Database schema needs updating. Missing columns detected.');
-        return NextResponse.json(
-          { 
-            error: 'Database schema needs updating', 
-            details: 'Missing required columns: description, total_questions, max_marks, is_active',
-            hint: 'Please run the database migration script'
-          },
-          { status: 500 }
-        );
-      }
-      
+      console.error('Full error details:', JSON.stringify(testError, null, 2));
       return NextResponse.json(
-        { error: 'Failed to create test', details: testError.message },
+        { 
+          error: 'Failed to create test', 
+          details: testError.message,
+          code: testError.code,
+          fullError: testError,
+          hint: testError.code === '42501' ? 'Database permission error. Run fix_production_auth.sql script.' : 
+                testError.code === 'PGRST204' ? 'Database schema mismatch. Some columns may not exist in your database.' : undefined
+        },
         { status: 500 }
       );
     }
