@@ -57,6 +57,13 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      animation: {
+        fold: "fold 0.6s ease-in-out forwards",
+        unfold: "unfold 0.6s ease-in-out forwards",
+      },
+      perspective: {
+        near: "300px",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],

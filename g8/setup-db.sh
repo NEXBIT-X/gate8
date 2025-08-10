@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Database Setup and Seeding Script
+echo "🚀 Setting up the test application database..."
+
+# Check if we're in the g8 directory
+if [ ! -f "package.json" ]; then
+    echo "❌ Please run this script from the g8 directory"
+    exit 1
+fi
+
+echo "📋 Setup Instructions:"
+echo ""
+echo "1. Make sure you have a Supabase project set up"
+echo "2. Add your environment variables to .env.local:"
+echo "   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url"
+echo "   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key"
+echo ""
+echo "3. Run the SQL migration in your Supabase SQL editor:"
+echo "   - Go to your Supabase dashboard"
+echo "   - Navigate to SQL Editor"
+echo "   - Copy and paste the contents of supabase/migrations/001_initial_schema.sql"
+echo "   - Run the SQL"
+echo ""
+echo "4. Start the development server:"
+echo "   npm run dev"
+echo ""
+echo "5. Navigate to /protected/dash and sign in"
+echo ""
+echo "6. Create sample data by making a POST request to:"
+echo "   http://localhost:3000/api/seed"
+echo "   (You can use the browser's developer tools console or a tool like curl)"
+echo ""
+echo "Example curl command:"
+echo "curl -X POST http://localhost:3000/api/seed -H 'Authorization: Bearer YOUR_JWT_TOKEN'"
+echo ""
+echo "📚 Database Schema Summary:"
+echo "- profiles: User profiles with roles (student/admin)"
+echo "- tests: Test definitions with titles, tags, start/end times, questions"
+echo "- questions: Question bank with options, correct answers, marks, explanations"
+echo "- user_test_attempts: Individual test attempts by users"
+echo "- user_question_responses: Detailed responses to each question"
+echo ""
+echo "🔐 Features included:"
+echo "- Row Level Security (RLS) policies"
+echo "- Dynamic scoring system"
+echo "- Time-based test availability"
+echo "- Complete test taking interface"
+echo "- Detailed result reporting"
+echo ""
+echo "Ready to start! 🎉"
