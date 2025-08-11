@@ -18,12 +18,12 @@ export interface Test {
 }
 
 export interface Question {
-  id: number;
+  id: number; // serial in your database
   test_id: string;
-  question: string;
+  question: string; // your schema uses 'question', not 'question_text'
   question_type: 'MCQ' | 'MSQ' | 'NAT';
-  options?: string[]; // null for NAT questions
-  correct_answer: string; // 'A', 'B' for MCQ; 'A,B,C' for MSQ; numeric for NAT
+  options?: string[]; // text[] in your database, null for NAT questions
+  correct_answer: string; // text in your database
   marks: number;
   negative_marks: number;
   tag?: string;

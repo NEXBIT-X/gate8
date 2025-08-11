@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const serviceSupabase = createServiceClient();
     
     // Log environment info for debugging
     console.log('Environment check:', {
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     console.log('Starting test for user:', user.id, 'testId:', testId);
 
     // Check if test exists and is available
-    const { data: test, error: testError } = await supabase
+    const { data: test, error: testError } = await serviceSupabase
       .from('tests')
       .select('*')
       .eq('id', testId)
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
     
     try {
       console.log('Checking for existing attempts for user:', user.id, 'test:', testId);
-      const { data, error } = await supabase
+      const { data, error } = await serviceSupabase
         .from('user_test_attempts')
         .select('*')
         .eq('user_id', user.id)
@@ -121,20 +123,69 @@ export async function POST(request: NextRequest) {
       if (existingAttempt.is_completed) {
         return NextResponse.json({ error: 'Test already completed' }, { status: 400 });
       }
-      // Return existing attempt if not completed
-      console.log('Returning existing attempt:', existingAttempt.id);
+      
+      // Get questions for existing attempt too
+      console.log('Fetching questions for existing attempt, test ID:', testId);
+      const { data: questions, error: questionsError } = await serviceSupabase
+        .from('questions')
+        .select('*')
+        .eq('test_id', testId)
+        .order('id');
+
+      if (questionsError) {
+        console.error('Error fetching questions for existing attempt:', questionsError);
+        return NextResponse.json({ 
+          error: 'Failed to fetch questions', 
+          details: questionsError.message 
+        }, { status: 500 });
+      }
+
+      if (!questions || questions.length === 0) {
+        console.error('No questions found for existing attempt, test:', testId);
+        return NextResponse.json({ 
+          error: 'No questions found for this test',
+          testId: testId,
+          hint: 'Please check if questions are properly inserted in the database for this test ID'
+        }, { status: 400 });
+      }
+
+      // Transform questions for existing attempt
+      const transformedQuestions = questions.map(q => ({
+        id: q.id,
+        test_id: q.test_id,
+        question: q.question,
+        question_type: q.question_type,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        marks: q.marks,
+        negative_marks: q.negative_marks,
+        created_at: q.created_at
+      }));
+
+      console.log('Returning existing attempt with questions:', existingAttempt.id, 'Questions:', transformedQuestions.length);
       return NextResponse.json({ 
         success: true,
         attempt: existingAttempt,
-        test: { ...test }
+        test: { 
+          ...test,
+          questions: transformedQuestions
+        }
       });
     }
 
-    // Get questions for this test
-    const { data: questions, error: questionsError } = await supabase
+    // Get questions for this test (ordered by id since no question_number in your schema)
+    console.log('Fetching questions for test ID:', testId);
+    const { data: questions, error: questionsError } = await serviceSupabase
       .from('questions')
       .select('*')
-      .eq('test_id', testId);
+      .eq('test_id', testId)
+      .order('id');
+
+    console.log('Questions query result:', { 
+      data: questions, 
+      error: questionsError,
+      count: questions?.length || 0 
+    });
 
     if (questionsError) {
       console.error('Error fetching questions:', questionsError);
@@ -146,25 +197,51 @@ export async function POST(request: NextRequest) {
 
     if (!questions || questions.length === 0) {
       console.error('No questions found for test:', testId);
+      
+      // Let's check if the test exists and get some info about it
+      const { data: testCheck } = await serviceSupabase
+        .from('tests')
+        .select('id, title')
+        .eq('id', testId)
+        .single();
+      
+      console.log('Test exists check:', testCheck);
+      
       return NextResponse.json({ 
         error: 'No questions found for this test',
-        testId: testId 
+        testId: testId,
+        testExists: !!testCheck,
+        hint: 'Please check if questions are properly inserted in the database for this test ID'
       }, { status: 400 });
     }
 
     console.log(`Found ${questions.length} questions for test ${testId}`);
 
-    // Create new test attempt with explicit data
+    // Transform questions to match the expected interface
+    const transformedQuestions = questions.map(q => ({
+      id: q.id, // This is already correct (serial/integer)
+      test_id: q.test_id,
+      question: q.question, // Your schema uses 'question', not 'question_text'
+      question_type: q.question_type,
+      options: q.options, // Your schema uses text[], not jsonb
+      correct_answer: q.correct_answer, // Your schema uses text, not jsonb
+      marks: q.marks,
+      negative_marks: q.negative_marks,
+      created_at: q.created_at
+    }));
+    
+    console.log('Transformed questions sample:', transformedQuestions[0]);
+    console.log('All transformed questions count:', transformedQuestions.length);
+
+    // Create new test attempt with only the columns that exist in your schema
     console.log('Creating test attempt for user:', user.id, 'test:', testId);
     
     const attemptData = {
       user_id: user.id,
       test_id: testId,
       answers: {},
-      total_score: 0.00,
-      percentage: 0.00,
-      is_completed: false,
-      time_taken_seconds: 0
+      is_completed: false
+      // started_at will be set automatically by your schema default
     };
     
     console.log('Attempt data to insert:', attemptData);
@@ -173,7 +250,7 @@ export async function POST(request: NextRequest) {
     let attemptError = null;
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await serviceSupabase
         .from('user_test_attempts')
         .insert(attemptData)
         .select()
@@ -225,7 +302,7 @@ export async function POST(request: NextRequest) {
       attempt,
       test: {
         ...test,
-        questions: questions
+        questions: transformedQuestions
       }
     });
   } catch (error) {

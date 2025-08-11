@@ -42,27 +42,50 @@ const TestInterface = () => {
                     body: JSON.stringify({ testId }),
                 });
 
+                console.log('API Response status:', response.status);
+                console.log('API Response ok:', response.ok);
+
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to load test');
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('API Error Response:', errorData);
+                    throw new Error(errorData.error || errorData.details || `HTTP ${response.status}: Request failed`);
                 }
 
                 setLoadingStage('loading-questions');
                 const data = await response.json();
                 
+                console.log('API Response data:', data);
+                console.log('Test questions from API:', data.test?.questions);
+                
                 setLoadingStage('preparing-interface');
                 await new Promise(resolve => setTimeout(resolve, 300)); // Show preparing stage
                 
-                setTest(data.test);
+                // Ensure questions are properly structured
+                const testData = {
+                    ...data.test,
+                    questionDetails: data.test.questions || []
+                };
+                
+                console.log('Test data after processing:', testData);
+                console.log('Question details count:', testData.questionDetails?.length);
+                
+                setTest(testData);
                 setAttempt(data.attempt);
                 setSelectedAnswers(data.attempt.answers || {});
 
                 // Calculate time remaining
-                const startTime = new Date(data.attempt.created_at).getTime();
+                const startTime = new Date(data.attempt.started_at || data.attempt.created_at).getTime();
                 const durationMs = data.test.duration_minutes * 60 * 1000;
                 const elapsed = Date.now() - startTime;
                 const remaining = Math.max(0, durationMs - elapsed);
                 setTimeRemaining(Math.floor(remaining / 1000));
+
+                console.log('Time calculation:', {
+                    startTime: data.attempt.started_at || data.attempt.created_at,
+                    durationMinutes: data.test.duration_minutes,
+                    elapsed: elapsed,
+                    remaining: remaining
+                });
 
                 setLoadingStage('ready');
                 await new Promise(resolve => setTimeout(resolve, 500)); // Show ready stage
@@ -171,9 +194,14 @@ const TestInterface = () => {
 
     // Track visited questions
     useEffect(() => {
-        if (test?.questionDetails[currentQuestionIndex]) {
-            const id = test.questionDetails[currentQuestionIndex].id;
-            setVisitedQuestions(v => (v.has(id) ? v : new Set(v).add(id)));
+        if (test?.questionDetails?.[currentQuestionIndex]) {
+            const questionId = test.questionDetails[currentQuestionIndex].id;
+            setVisitedQuestions(prev => {
+                if (prev.has(questionId)) return prev;
+                const newSet = new Set(prev);
+                newSet.add(questionId);
+                return newSet;
+            });
         }
     }, [currentQuestionIndex, test]);
     const formatTime = (seconds: number) => {
@@ -204,7 +232,7 @@ const TestInterface = () => {
 
     const statusLabelCounts = () => {
         let answered = 0, marked = 0, answeredMarked = 0, notAnswered = 0, notVisited = 0;
-        test?.questionDetails.forEach(q => {
+        test?.questionDetails?.forEach(q => {
             const st = getQuestionStatus(q.id);
             switch (st) {
                 case 'answered': answered++; break;
@@ -340,15 +368,54 @@ const TestInterface = () => {
         );
     }
 
-    if (!test || !attempt) {
+    if (!test || !attempt || !test.questionDetails || test.questionDetails.length === 0) {
+        console.log('Test validation failed:', {
+            hasTest: !!test,
+            hasAttempt: !!attempt,
+            hasQuestionDetails: !!test?.questionDetails,
+            questionCount: test?.questionDetails?.length || 0,
+            testData: test,
+            questionDetails: test?.questionDetails
+        });
+        
         return (
             <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-                <p>Test not found</p>
+                <div className="max-w-md mx-auto p-6 bg-gray-800 rounded-lg border border-gray-700 shadow-lg text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-red-900/30 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2 text-white">Test Loading Issue</h3>
+                    <p className="text-gray-300 mb-4">
+                        {!test ? 'Test data not loaded' : 
+                         !attempt ? 'Test attempt not created' :
+                         !test.questionDetails ? 'Questions not structured properly' :
+                         test.questionDetails.length === 0 ? 'No questions found for this test' :
+                         'Unknown issue'}
+                    </p>
+                    <p className="text-sm text-gray-400 mb-4">
+                        Debug: Test={!!test}, Attempt={!!attempt}, Questions={test?.questionDetails?.length || 0}
+                    </p>
+                    <button 
+                        onClick={() => router.push('/protected/dash')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
             </div>
         );
     }
 
     const currentQuestion = test.questionDetails[currentQuestionIndex];
+    if (!currentQuestion) {
+        return (
+            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+                <p>Question not found</p>
+            </div>
+        );
+    }
     const answeredCount = Object.keys(selectedAnswers).length;
     const markedCount = markedForReview.size;
     const counts = statusLabelCounts();
