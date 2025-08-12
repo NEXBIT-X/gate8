@@ -43,6 +43,6 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^2.0.5"
+    "vitest": "^3.2.4"
   }
 }
