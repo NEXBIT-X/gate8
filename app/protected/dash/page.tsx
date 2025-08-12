@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Clock from './widgets/clock';
 import { DatabaseLoading, LoadingSpinner } from '@/components/loading';
-import type { Test } from '@/lib/types';
+import type { Test, TestWithAttempt, UserTestAttempt } from '@/lib/types';
 
 interface StartTestResponse {
     attempt?: {
@@ -13,6 +13,18 @@ interface StartTestResponse {
     error?: string;
     details?: string;
     raw?: string;
+}
+
+interface UserAttempt {
+    id: string;
+    test_id: string;
+    started_at: string;
+    submitted_at?: string;
+    is_completed: boolean;
+    total_score?: number;
+    percentage?: number;
+    time_taken_seconds?: number;
+    test: Test;
 }
 
 const DateTime = ({ iso }: { iso: string }) => {
@@ -24,12 +36,14 @@ const DateTime = ({ iso }: { iso: string }) => {
     return <time dateTime={iso} suppressHydrationWarning className="tabular-nums">{display}</time>;
 };
 
-const Section = ({ title, items, empty, onStartTest, startingTestId }: { 
+const Section = ({ title, items, empty, onStartTest, startingTestId, onViewResult, onContinueTest }: { 
     title: string; 
-    items: Test[]; 
+    items: (Test | TestWithAttempt)[]; 
     empty: string;
     onStartTest?: (testId: string) => void;
     startingTestId?: string | null;
+    onViewResult?: (attemptId: string) => void;
+    onContinueTest?: (testId: string, attemptId: string) => void;
 }) => (
     <div className="rounded border p-4 space-y-3">
         <h2 className="text-lg font-semibold">{title}</h2>
@@ -65,6 +79,17 @@ const Section = ({ title, items, empty, onStartTest, startingTestId }: {
                                 <span>Ended:</span> <DateTime iso={t.end_time} />
                             </>
                         )}
+                        {title === 'Attempted Tests' && 'attempt' in t && t.attempt && (
+                            <>
+                                <span>Attempted:</span> <DateTime iso={t.attempt.started_at} />
+                                {t.attempt.is_completed && t.attempt.percentage !== undefined && (
+                                    <>
+                                        <span className="opacity-60">|</span>
+                                        <span>Score:</span> {Math.round(t.attempt.percentage * 100) / 100}%
+                                    </>
+                                )}
+                            </>
+                        )}
                     </div>
                     {title === 'Available Tests' && onStartTest && (
                         <button 
@@ -86,9 +111,29 @@ const Section = ({ title, items, empty, onStartTest, startingTestId }: {
                             )}
                         </button>
                     )}
+                    {title === 'Attempted Tests' && 'attempt' in t && t.attempt && (
+                        <div className="flex gap-2">
+                            {!t.attempt.is_completed && onContinueTest && (
+                                <button 
+                                    onClick={() => onContinueTest(t.id, t.attempt!.id)}
+                                    className="text-xs px-3 py-1 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium transition"
+                                >
+                                    Continue Test
+                                </button>
+                            )}
+                            {t.attempt.is_completed && onViewResult && (
+                                <button 
+                                    onClick={() => onViewResult(t.attempt!.id)}
+                                    className="text-xs px-3 py-1 rounded bg-green-500 hover:bg-green-600 text-white font-medium transition"
+                                >
+                                    View Results
+                                </button>
+                            )}
+                        </div>
+                    )}
                     {title === 'Ended Tests' && (
-                        <button className="self-start text-xs px-2 py-1 rounded">
-                            View Result
+                        <button className="self-start text-xs px-2 py-1 rounded bg-gray-500 text-white">
+                            Unavailable
                         </button>
                     )}
                 </li>
@@ -99,9 +144,18 @@ const Section = ({ title, items, empty, onStartTest, startingTestId }: {
 
 const Dash = () => {
     const [tests, setTests] = useState<Test[] | null>(null);
+    const [userAttempts, setUserAttempts] = useState<UserAttempt[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [startingTestId, setStartingTestId] = useState<string | null>(null);
     const router = useRouter();
+
+    const handleViewResult = (attemptId: string) => {
+        router.push(`/protected/test-result/${attemptId}`);
+    };
+
+    const handleContinueTest = (testId: string, attemptId: string) => {
+        router.push(`/protected/test/${testId}?attempt=${attemptId}`);
+    };
 
     const handleStartTest = async (testId: string) => {
         try {
@@ -183,12 +237,32 @@ const Dash = () => {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch('/api/tests', { cache: 'no-store' });
-                if (!res.ok) throw new Error(res.statusText);
-                const data: Test[] = await res.json();
-                if (!cancelled) setTests(data);
+                // Fetch tests and user attempts in parallel
+                const [testsRes, attemptsRes] = await Promise.all([
+                    fetch('/api/tests', { cache: 'no-store' }),
+                    fetch('/api/user/attempts', { cache: 'no-store' })
+                ]);
+                
+                if (!testsRes.ok) throw new Error(`Tests: ${testsRes.statusText}`);
+                
+                const testsData: Test[] = await testsRes.json();
+                let attemptsData: UserAttempt[] = [];
+                
+                // User attempts might fail if user hasn't attempted any tests yet
+                if (attemptsRes.ok) {
+                    try {
+                        attemptsData = await attemptsRes.json();
+                    } catch (e) {
+                        console.warn('Failed to parse attempts data:', e);
+                    }
+                }
+                
+                if (!cancelled) {
+                    setTests(testsData);
+                    setUserAttempts(attemptsData);
+                }
             } catch (e: unknown) {
-                if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load tests');
+                if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load data');
             }
         })();
         return () => { cancelled = true; };
@@ -196,12 +270,48 @@ const Dash = () => {
 
     const now = Date.now();
 
-    const { available, upcoming, ended } = useMemo(() => {
+    const { available, upcoming, ended, attempted } = useMemo(() => {
         const base: Test[] = tests || [];
+        const attempts: UserAttempt[] = userAttempts || [];
+        
+        // Create a set of test IDs that have been attempted
+        const attemptedTestIds = new Set(attempts.map(attempt => attempt.test_id));
+        
         const avail: Test[] = [];
         const up: Test[] = [];
         const end: Test[] = [];
+        const attemptedWithTests: TestWithAttempt[] = [];
+        
+        // Process attempted tests first
+        attempts.forEach(attempt => {
+            const testWithAttempt: TestWithAttempt = {
+                ...attempt.test,
+                attempt: {
+                    id: attempt.id,
+                    user_id: '', // Not needed for display
+                    test_id: attempt.test_id,
+                    started_at: attempt.started_at,
+                    submitted_at: attempt.submitted_at,
+                    answers: {},
+                    total_marks: 0,
+                    obtained_marks: attempt.total_score || 0,
+                    is_completed: attempt.is_completed,
+                    time_taken_seconds: attempt.time_taken_seconds || 0,
+                    created_at: attempt.started_at,
+                    total_score: attempt.total_score,
+                    percentage: attempt.percentage
+                }
+            };
+            attemptedWithTests.push(testWithAttempt);
+        });
+        
+        // Process all tests, excluding attempted ones from available
         base.forEach(t => {
+            // Skip if this test has been attempted
+            if (attemptedTestIds.has(t.id)) {
+                return;
+            }
+            
             const startTime = new Date(t.start_time).getTime();
             const endTime = new Date(t.end_time).getTime();
             if (now >= startTime && now <= endTime) {
@@ -212,11 +322,14 @@ const Dash = () => {
                 end.push(t);
             }
         });
+        
         avail.sort((a, b) => new Date(a.end_time).getTime() - new Date(b.end_time).getTime());
         up.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
         end.sort((a, b) => new Date(b.end_time).getTime() - new Date(a.end_time).getTime());
-        return { available: avail, upcoming: up, ended: end };
-    }, [tests, now]);
+        attemptedWithTests.sort((a, b) => new Date(b.attempt!.started_at).getTime() - new Date(a.attempt!.started_at).getTime());
+        
+        return { available: avail, upcoming: up, ended: end, attempted: attemptedWithTests };
+    }, [tests, userAttempts, now]);
 
     return (
         <div className="min-h-screen">
@@ -269,10 +382,11 @@ const Dash = () => {
                                 Start Practice
                             </button>
                         </div>
-                        <div className="grid gap-6 md:grid-cols-3">
-                        <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTest} startingTestId={startingTestId} />
-                        <Section title="Upcoming Tests" items={upcoming} empty="No upcoming tests scheduled." />
-                        <Section title="Ended Tests" items={ended} empty="No tests have ended yet." />
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                            <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTest} startingTestId={startingTestId} />
+                            <Section title="Attempted Tests" items={attempted} empty="You haven't attempted any tests yet." onViewResult={handleViewResult} onContinueTest={handleContinueTest} />
+                            <Section title="Upcoming Tests" items={upcoming} empty="No upcoming tests scheduled." />
+                            <Section title="Ended Tests" items={ended} empty="No tests have ended yet." />
                         </div>
                     </div>
                 )}

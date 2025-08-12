@@ -57,8 +57,13 @@ export async function POST(request: NextRequest) {
       return sum + (response.marks_obtained || 0);
     }, 0) || 0;
 
-    // Get test details for total marks
-    const totalPossibleMarks = attempt.tests?.total_marks || 0;
+    // Calculate total possible marks from test questions
+    const { data: testQuestions, error: questionsError } = await supabase
+      .from('questions')
+      .select('marks')
+      .eq('test_id', attempt.test_id);
+
+    const totalPossibleMarks = testQuestions?.reduce((sum, q) => sum + q.marks, 0) || 0;
     const percentage = totalPossibleMarks > 0 ? (Math.max(0, totalScore) / totalPossibleMarks) * 100 : 0;
     
     const timeTaken = Math.floor((new Date().getTime() - new Date(attempt.started_at).getTime()) / 1000);
@@ -68,10 +73,12 @@ export async function POST(request: NextRequest) {
       .from('user_test_attempts')
       .update({
         is_completed: true,
-        completed_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
         total_score: totalScore,
         percentage: Math.round(percentage * 100) / 100,
-        time_taken_seconds: timeTaken
+        time_taken_seconds: timeTaken,
+        obtained_marks: totalScore,
+        total_marks: totalPossibleMarks
       })
       .eq('id', attemptId)
       .select()

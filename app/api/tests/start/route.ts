@@ -120,57 +120,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingAttempt) {
-      if (existingAttempt.is_completed) {
-        return NextResponse.json({ error: 'Test already completed' }, { status: 400 });
-      }
-      
-      // Get questions for existing attempt too
-      console.log('Fetching questions for existing attempt, test ID:', testId);
-      const { data: questions, error: questionsError } = await serviceSupabase
-        .from('questions')
-        .select('*')
-        .eq('test_id', testId)
-        .order('id');
-
-      if (questionsError) {
-        console.error('Error fetching questions for existing attempt:', questionsError);
-        return NextResponse.json({ 
-          error: 'Failed to fetch questions', 
-          details: questionsError.message 
-        }, { status: 500 });
-      }
-
-      if (!questions || questions.length === 0) {
-        console.error('No questions found for existing attempt, test:', testId);
-        return NextResponse.json({ 
-          error: 'No questions found for this test',
-          testId: testId,
-          hint: 'Please check if questions are properly inserted in the database for this test ID'
-        }, { status: 400 });
-      }
-
-      // Transform questions for existing attempt
-      const transformedQuestions = questions.map(q => ({
-        id: q.id,
-        test_id: q.test_id,
-        question: q.question,
-        question_type: q.question_type,
-        options: q.options,
-        correct_answer: q.correct_answer,
-        marks: q.marks,
-        negative_marks: q.negative_marks,
-        created_at: q.created_at
-      }));
-
-      console.log('Returning existing attempt with questions:', existingAttempt.id, 'Questions:', transformedQuestions.length);
+      // Prevent any re-attempt of a test that has been started
       return NextResponse.json({ 
-        success: true,
-        attempt: existingAttempt,
-        test: { 
-          ...test,
-          questions: transformedQuestions
-        }
-      });
+        error: 'Test already attempted', 
+        details: 'You have already attempted this test. Each test can only be attempted once.',
+        hint: 'You can view your test results from the dashboard.'
+      }, { status: 400 });
     }
 
     // Get questions for this test (ordered by id since no question_number in your schema)

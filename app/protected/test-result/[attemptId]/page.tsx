@@ -8,9 +8,16 @@ interface TestResult {
     test: Test;
     responses: (UserQuestionResponse & { question: Question })[];
     score: {
-        obtained: number;
-        total: number;
-        percentage: number;
+        obtained?: number;
+        total?: number;
+        percentage?: number;
+        totalScore?: number;
+        totalPossibleMarks?: number;
+        totalQuestions?: number;
+        answeredQuestions?: number;
+        correctAnswers?: number;
+        incorrectAnswers?: number;
+        unansweredQuestions?: number;
     };
 }
 
@@ -107,7 +114,7 @@ const TestResultPage = () => {
             <div className="border-b border-neutral-800 p-4">
                 <div className="max-w-4xl mx-auto">
                     <h1 className="text-2xl font-bold">{result.test.title} - Results</h1>
-                    <p className="text-gray-400">Test completed on {new Date(result.attempt.submitted_at!).toLocaleString()}</p>
+                    <p className="text-gray-400">Test completed on {new Date(result.attempt.submitted_at || result.attempt.created_at).toLocaleString()}</p>
                 </div>
             </div>
 
@@ -116,26 +123,26 @@ const TestResultPage = () => {
                 <div className="bg-neutral-900 rounded-lg p-6 mb-6">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
                         <div>
-                            <div className={`text-4xl font-bold ${getGradeColor(result.score.percentage)}`}>
-                                {result.score.percentage}%
+                            <div className={`text-4xl font-bold ${getGradeColor(result.score.percentage || 0)}`}>
+                                {Math.round((result.score.percentage || 0) * 100) / 100}%
                             </div>
                             <div className="text-sm text-gray-400">Score</div>
                         </div>
                         <div>
-                            <div className={`text-4xl font-bold ${getGradeColor(result.score.percentage)}`}>
-                                {getGradeLetter(result.score.percentage)}
+                            <div className={`text-4xl font-bold ${getGradeColor(result.score.percentage || 0)}`}>
+                                {getGradeLetter(result.score.percentage || 0)}
                             </div>
                             <div className="text-sm text-gray-400">Grade</div>
                         </div>
                         <div>
                             <div className="text-2xl font-bold text-white">
-                                {result.score.obtained}/{result.score.total}
+                                {result.score.obtained || result.score.totalScore || 0}/{result.score.total || result.score.totalPossibleMarks || 0}
                             </div>
                             <div className="text-sm text-gray-400">Points</div>
                         </div>
                         <div>
                             <div className="text-2xl font-bold text-white">
-                                {formatTime(result.attempt.time_taken_seconds)}
+                                {formatTime(result.attempt.time_taken_seconds || 0)}
                             </div>
                             <div className="text-sm text-gray-400">Time Taken</div>
                         </div>

@@ -51,36 +51,44 @@ export async function POST(request: NextRequest) {
 
     switch (question.question_type) {
       case 'MCQ':
-        isCorrect = question.correct_answers && question.correct_answers.includes(answer);
-        marksObtained = isCorrect ? question.positive_marks : -question.negative_marks;
+        // For MCQ, compare with the correct_answer field (string)
+        isCorrect = question.correct_answer === answer;
+        marksObtained = isCorrect ? question.marks : -question.negative_marks;
         break;
         
       case 'MSQ':
-        // For MSQ, all correct answers must be selected and no incorrect ones
-        if (question.correct_answers && Array.isArray(answer)) {
-          const correctSet = new Set(question.correct_answers);
+        // For MSQ, the correct_answer might be a comma-separated string or JSON
+        // Since your schema uses text, let's handle it properly
+        let correctAnswers: string[] = [];
+        try {
+          // Try parsing as JSON first
+          correctAnswers = JSON.parse(question.correct_answer);
+        } catch {
+          // If not JSON, assume comma-separated
+          correctAnswers = question.correct_answer.split(',').map((a: string) => a.trim());
+        }
+        
+        if (Array.isArray(answer)) {
+          const correctSet = new Set(correctAnswers);
           const answerSet = new Set(answer);
           
           // Check if sets are equal
           isCorrect = correctSet.size === answerSet.size && 
                      [...correctSet].every(x => answerSet.has(x));
         }
-        marksObtained = isCorrect ? question.positive_marks : -question.negative_marks;
+        marksObtained = isCorrect ? question.marks : -question.negative_marks;
         break;
         
       case 'NAT':
-        // For NAT, check against numerical range
+        // For NAT, compare numerical values with tolerance
         const numAnswer = parseFloat(answer);
-        if (!isNaN(numAnswer) && question.numerical_answer_range) {
-          const range = question.numerical_answer_range;
-          if (range.exact !== undefined) {
-            isCorrect = Math.abs(numAnswer - range.exact) < 0.01; // Allow small floating point errors
-          } else if (range.min !== undefined && range.max !== undefined) {
-            isCorrect = numAnswer >= range.min && numAnswer <= range.max;
-          }
+        const correctNum = parseFloat(question.correct_answer);
+        if (!isNaN(numAnswer) && !isNaN(correctNum)) {
+          // Allow small floating point errors (0.01 tolerance)
+          isCorrect = Math.abs(numAnswer - correctNum) <= 0.01;
         }
         // NAT questions typically don't have negative marking
-        marksObtained = isCorrect ? question.positive_marks : 0;
+        marksObtained = isCorrect ? question.marks : 0;
         break;
     }
 
@@ -90,8 +98,7 @@ export async function POST(request: NextRequest) {
       .upsert({
         attempt_id: attemptId,
         question_id: questionId,
-        question_type: question.question_type,
-        user_answer: answer,
+        user_answer: typeof answer === 'object' ? JSON.stringify(answer) : String(answer),
         is_correct: isCorrect,
         marks_obtained: marksObtained
       });

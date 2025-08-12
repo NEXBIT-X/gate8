@@ -39,10 +39,7 @@ export async function GET(
     // Get all responses for this attempt with question details
     const { data: responses, error: responsesError } = await supabase
       .from('user_question_responses')
-      .select(`
-        *,
-        questions (*)
-      `)
+      .select('*')
       .eq('attempt_id', attemptId);
 
     if (responsesError) {
@@ -50,11 +47,25 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
     }
 
-    // Transform the response data and calculate statistics
-    const transformedResponses = responses?.map(response => ({
-      ...response,
-      question: response.questions
-    })) || [];
+    // Get question details separately since the join might not work with integer foreign key
+    let transformedResponses = [];
+    if (responses && responses.length > 0) {
+      const questionIds = responses.map(r => r.question_id);
+      const { data: questions, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .in('id', questionIds);
+
+      if (!questionsError && questions) {
+        const questionMap = new Map(questions.map(q => [q.id, q]));
+        transformedResponses = responses.map(response => ({
+          ...response,
+          question: questionMap.get(response.question_id)
+        }));
+      } else {
+        transformedResponses = responses;
+      }
+    }
 
     // Calculate comprehensive statistics
     const totalQuestions = transformedResponses.length;
@@ -68,7 +79,7 @@ export async function GET(
       return sum + (response.marks_obtained || 0);
     }, 0);
 
-    const totalPossibleMarks = attempt.tests?.total_marks || 0;
+    const totalPossibleMarks = attempt.total_marks || 0;
     const percentage = attempt.percentage || 0;
 
     const result = {
@@ -83,7 +94,9 @@ export async function GET(
         answeredQuestions,
         correctAnswers,
         incorrectAnswers,
-        unansweredQuestions
+        unansweredQuestions,
+        obtained: totalScore,
+        total: totalPossibleMarks
       }
     };
 

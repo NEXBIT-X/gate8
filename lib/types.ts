@@ -24,10 +24,11 @@ export interface Question {
   question_type: 'MCQ' | 'MSQ' | 'NAT';
   options?: string[]; // text[] in your database, null for NAT questions
   correct_answer: string; // text in your database
-  marks: number;
-  negative_marks: number;
+  marks: number; // numeric(4,2) in your database
+  negative_marks: number; // numeric(4,2) in your database
   tag?: string;
   explanation?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
   created_at: string;
 }
 
@@ -40,11 +41,12 @@ export interface UserTestAttempt {
   answers: Record<string, string>; // question_id -> user_answer
   total_marks: number;
   obtained_marks: number;
-  negative_marks: number;
-  final_score: number;
   is_completed: boolean;
   time_taken_seconds: number;
   created_at: string;
+  // Additional columns from updated schema
+  total_score?: number;
+  percentage?: number;
 }
 
 export interface UserQuestionResponse {
@@ -54,7 +56,7 @@ export interface UserQuestionResponse {
   user_answer?: string;
   is_correct: boolean;
   marks_obtained: number;
-  time_spent_seconds: number;
+  time_spent_seconds?: number;
   created_at: string;
 }
 
@@ -70,6 +72,10 @@ export interface TestResult {
     accuracy_percentage: number;
     score_percentage: number;
   };
+}
+
+export interface TestWithAttempt extends Test {
+  attempt?: UserTestAttempt;
 }
 
 export interface TestWithQuestions extends Test {

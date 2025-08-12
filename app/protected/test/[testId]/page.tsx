@@ -34,13 +34,34 @@ const TestInterface = () => {
                 await new Promise(resolve => setTimeout(resolve, 500)); // Show initializing stage
                 
                 setLoadingStage('loading-test');
-                const response = await fetch('/api/tests/start', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ testId }),
-                });
+                
+                // If we have an attemptId parameter, we're continuing an existing test
+                // Otherwise, try to load existing session first, then start new if needed
+                let response;
+                
+                if (attemptId) {
+                    // Load existing test session
+                    response = await fetch(`/api/tests/session/${testId}`);
+                } else {
+                    // First try to load existing session
+                    response = await fetch(`/api/tests/session/${testId}`);
+                    
+                    if (!response.ok) {
+                        const sessionError = await response.json().catch(() => ({}));
+                        
+                        // If no existing session found, try to start a new test
+                        if (sessionError.requiresStart) {
+                            console.log('No existing session found, starting new test...');
+                            response = await fetch('/api/tests/start', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ testId }),
+                            });
+                        }
+                    }
+                }
 
                 console.log('API Response status:', response.status);
                 console.log('API Response ok:', response.ok);
