@@ -34,7 +34,7 @@ export default async function AdminDashboard() {
   }
 
   // Authorization: only allow specific emails
-  const allowedEmails = ["abhijeethvn2006@gmail.com","pavan03062006@gmail.com"];
+  const allowedEmails = ["abhijeethvn2006@gmail.com","pavan03062006@gmail.com","devash217@gmail.com","b.lakshminarayanan2007@gmail.com"];
   if (!user?.email || !allowedEmails.includes(user.email)) {
     return (
       <div className="min-h-screen flex items-center justify-center text-center p-8">
