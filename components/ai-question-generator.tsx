@@ -14,7 +14,11 @@ import {
   CheckCircle, 
   AlertCircle,
   Loader,
-  BarChart3
+  BarChart3,
+  Wand2,
+  Languages,
+  Target,
+  BookOpen
 } from 'lucide-react';
 import { GATE_SUBJECTS } from '@/lib/ai/gateQuestions';
 
@@ -35,6 +39,23 @@ interface GenerationResult {
   error?: string;
 }
 
+interface QuestionQualityReport {
+  score: number;
+  issues: string[];
+  suggestions: string[];
+  difficulty_assessment: 'easy' | 'medium' | 'hard';
+  clarity_score: number;
+  accuracy_score: number;
+}
+
+interface QuestionEnhancement {
+  original_question: string;
+  improved_question: string;
+  improvements_made: string[];
+  explanation_enhanced: string;
+  difficulty_adjusted?: 'easy' | 'medium' | 'hard';
+}
+
 export default function AIQuestionGenerator() {
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState<number>(10);
@@ -45,6 +66,14 @@ export default function AIQuestionGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // New Gemini enhancement states
+  const [selectedQuestion, setSelectedQuestion] = useState<string>('');
+  const [qualityReport, setQualityReport] = useState<QuestionQualityReport | null>(null);
+  const [enhancement, setEnhancement] = useState<QuestionEnhancement | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [showGeminiFeatures, setShowGeminiFeatures] = useState(false);
 
   const handleSubjectChange = (subject: string, checked: boolean) => {
     if (checked) {
@@ -109,6 +138,57 @@ export default function AIQuestionGenerator() {
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // New Gemini enhancement functions
+  const analyzeQuestionQuality = async (questionText: string, questionType: string, options?: string[]) => {
+    setIsAnalyzing(true);
+    try {
+      const response = await fetch('/api/admin/questions/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionText,
+          questionType,
+          options
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      
+      setQualityReport(data.qualityReport);
+    } catch (error) {
+      console.error('Error analyzing question:', error);
+      alert('Failed to analyze question quality');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const enhanceQuestion = async (questionText: string, questionType: string, subject: string) => {
+    setIsEnhancing(true);
+    try {
+      const response = await fetch('/api/admin/questions/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionText,
+          questionType,
+          subject
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      
+      setEnhancement(data.enhancement);
+    } catch (error) {
+      console.error('Error enhancing question:', error);
+      alert('Failed to enhance question');
+    } finally {
+      setIsEnhancing(false);
     }
   };
 
