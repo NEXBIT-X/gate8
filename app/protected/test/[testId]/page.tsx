@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { TestLoading } from '@/components/loading';
+import { useFullscreenManager } from '@/lib/fullscreen-manager';
 import type { TestWithQuestions, UserTestAttempt, Question } from '@/lib/types';
 
 type AnswerValue = string | string[] | number;
@@ -26,6 +27,26 @@ const TestInterface = () => {
     const [questionPanelOpen, setQuestionPanelOpen] = useState(true); // desktop always open
     const [visitedQuestions, setVisitedQuestions] = useState<Set<number>>(new Set());
     const [showMobilePalette, setShowMobilePalette] = useState(false);
+    const [showExitWarning, setShowExitWarning] = useState(false);
+    const [showBlockedWarning, setShowBlockedWarning] = useState(false);
+
+    // Fullscreen management
+    const { state: fullscreenState, enterFullscreen, resetExitAttempts } = useFullscreenManager(
+        3, // Max 3 exit attempts
+        (attempts, maxAttempts) => {
+            console.log(`Fullscreen exit attempt ${attempts}/${maxAttempts}`);
+            setShowExitWarning(true);
+            setTimeout(() => setShowExitWarning(false), 3000);
+        },
+        () => {
+            console.log('Test blocked due to too many fullscreen exits');
+            setShowBlockedWarning(true);
+            // Auto-submit test when blocked
+            setTimeout(() => {
+                handleCompleteTest();
+            }, 5000);
+        }
+    );
 
     useEffect(() => {
         const loadTestData = async () => {
@@ -110,6 +131,15 @@ const TestInterface = () => {
 
                 setLoadingStage('ready');
                 await new Promise(resolve => setTimeout(resolve, 500)); // Show ready stage
+                
+                // Enter fullscreen when test is ready
+                try {
+                    await enterFullscreen();
+                    console.log('Entered fullscreen mode for test');
+                } catch (fullscreenError) {
+                    console.warn('Could not enter fullscreen:', fullscreenError);
+                }
+                
                 setLoading(false);
             } catch (error) {
                 console.error('Error loading test:', error);
@@ -443,7 +473,44 @@ const TestInterface = () => {
     const counts = statusLabelCounts();
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row">
+        <>
+            {/* Fullscreen Exit Warning */}
+            {showExitWarning && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
+                    <div className="bg-red-600 text-white p-6 rounded-lg max-w-md mx-4 text-center">
+                        <div className="text-2xl mb-4">⚠️ Warning!</div>
+                        <h3 className="text-lg font-bold mb-2">Fullscreen Exit Detected</h3>
+                        <p className="mb-4">
+                            You have attempted to exit fullscreen mode. 
+                            Attempts: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}
+                        </p>
+                        <p className="text-sm">
+                            {fullscreenState.maxExitAttempts - fullscreenState.exitAttempts} more attempts remaining before test is auto-submitted.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Test Blocked Warning */}
+            {showBlockedWarning && (
+                <div className="fixed inset-0 z-50 bg-red-900/90 backdrop-blur-sm flex items-center justify-center">
+                    <div className="bg-red-700 text-white p-8 rounded-lg max-w-lg mx-4 text-center">
+                        <div className="text-3xl mb-4">🚫 Test Blocked</div>
+                        <h3 className="text-xl font-bold mb-4">Too Many Fullscreen Exits</h3>
+                        <p className="mb-4">
+                            You have exceeded the maximum allowed fullscreen exit attempts ({fullscreenState.maxExitAttempts}).
+                        </p>
+                        <p className="mb-6 text-red-200">
+                            Your test will be automatically submitted in a few seconds for security reasons.
+                        </p>
+                        <div className="animate-pulse text-lg font-semibold">
+                            Auto-submitting test...
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row">
             {/* Main Panel */}
             <div className="flex-1 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-800 min-w-0">
                 {/* Top Bar mimicking GATE */}
@@ -465,10 +532,18 @@ const TestInterface = () => {
                             <div className="text-[10px] text-gray-400">Time Left</div>
                         </div>
                         <div className="flex items-center gap-2 text-[11px]">
+                            {/* Fullscreen Status Indicator */}
+                            <div className={`w-2 h-2 rounded-full ${fullscreenState.isFullscreen ? 'bg-green-500' : 'bg-red-500'}`} 
+                                 title={fullscreenState.isFullscreen ? 'Fullscreen Active' : 'Fullscreen Inactive'}></div>
                             <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center font-semibold">U</div>
                             <div className="hidden sm:block text-right leading-tight">
                                 <div className="font-medium">Candidate</div>
                                 <div className="text-gray-400">Practice</div>
+                                {fullscreenState.exitAttempts > 0 && (
+                                    <div className="text-red-400 text-[9px]">
+                                        Exits: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -592,7 +667,8 @@ const TestInterface = () => {
                     </div>
                 </div>
             )}
-        </div>
+            </div>
+        </>
     );
 };
 

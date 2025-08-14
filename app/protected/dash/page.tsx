@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Clock from './widgets/clock';
 import { DatabaseLoading, LoadingSpinner } from '@/components/loading';
+import TestInstructionsModal from '@/components/test-instructions-modal';
 import type { Test, TestWithAttempt, UserTestAttempt } from '@/lib/types';
 
 interface StartTestResponse {
@@ -40,7 +41,7 @@ const Section = ({ title, items, empty, onStartTest, startingTestId, onViewResul
     title: string; 
     items: (Test | TestWithAttempt)[]; 
     empty: string;
-    onStartTest?: (testId: string) => void;
+    onStartTest?: (testId: string, testName: string) => void;
     startingTestId?: string | null;
     onViewResult?: (attemptId: string) => void;
     onContinueTest?: (testId: string, attemptId: string) => void;
@@ -93,7 +94,7 @@ const Section = ({ title, items, empty, onStartTest, startingTestId, onViewResul
                     </div>
                     {title === 'Available Tests' && onStartTest && (
                         <button 
-                            onClick={() => onStartTest(t.id)}
+                            onClick={() => onStartTest(t.id, t.title)}
                             disabled={startingTestId === t.id}
                             className={`self-start text-xs rounded px-3 py-1 font-medium transition flex items-center gap-2 ${
                                 startingTestId === t.id 
@@ -147,6 +148,9 @@ const Dash = () => {
     const [userAttempts, setUserAttempts] = useState<UserAttempt[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [startingTestId, setStartingTestId] = useState<string | null>(null);
+    const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+    const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+    const [selectedTestName, setSelectedTestName] = useState<string>('');
     const router = useRouter();
 
     const handleViewResult = (attemptId: string) => {
@@ -157,11 +161,39 @@ const Dash = () => {
         router.push(`/protected/test/${testId}?attempt=${attemptId}`);
     };
 
+    // Show instructions modal when start test is clicked
+    const handleStartTestClick = (testId: string, testName: string) => {
+        setSelectedTestId(testId);
+        setSelectedTestName(testName);
+        setShowInstructionsModal(true);
+    };
+
+    // Actual test start function after instructions are confirmed
     const handleStartTest = async (testId: string) => {
         try {
             console.log('Starting test with ID:', testId);
             setError(null); // Clear any previous errors
             setStartingTestId(testId); // Show loading for specific test
+            
+            // Enter fullscreen before starting the test
+            try {
+                // Check if fullscreen is supported and document is not already in fullscreen
+                if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+                    console.log('Requesting fullscreen...');
+                    await document.documentElement.requestFullscreen();
+                    console.log('Entered fullscreen mode for test');
+                } else if (document.fullscreenElement) {
+                    console.log('Already in fullscreen mode');
+                } else {
+                    console.warn('Fullscreen not supported');
+                }
+            } catch (fullscreenError) {
+                console.warn('Could not enter fullscreen:', fullscreenError);
+                // Don't block test start if fullscreen fails - just log the error
+                if (fullscreenError instanceof Error) {
+                    console.warn('Fullscreen error details:', fullscreenError.message);
+                }
+            }
             
             const response = await fetch('/api/tests/start', {
                 method: 'POST',
@@ -231,6 +263,21 @@ const Dash = () => {
         } finally {
             setStartingTestId(null); // Clear loading state
         }
+    };
+
+    // Handle proceeding from instructions modal
+    const handleProceedToTest = async () => {
+        setShowInstructionsModal(false);
+        if (selectedTestId) {
+            await handleStartTest(selectedTestId);
+        }
+    };
+
+    // Handle closing instructions modal
+    const handleCloseInstructions = () => {
+        setShowInstructionsModal(false);
+        setSelectedTestId(null);
+        setSelectedTestName('');
     };
 
     useEffect(() => {
@@ -383,13 +430,21 @@ const Dash = () => {
                             </button>
                         </div>
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                            <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTest} startingTestId={startingTestId} />
+                            <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTestClick} startingTestId={startingTestId} />
                             <Section title="Attempted Tests" items={attempted} empty="You haven't attempted any tests yet." onViewResult={handleViewResult} onContinueTest={handleContinueTest} />
                             <Section title="Upcoming Tests" items={upcoming} empty="No upcoming tests scheduled." />
                             <Section title="Ended Tests" items={ended} empty="No tests have ended yet." />
                         </div>
                     </div>
                 )}
+                
+                {/* Test Instructions Modal */}
+                <TestInstructionsModal
+                    isOpen={showInstructionsModal}
+                    onClose={handleCloseInstructions}
+                    onProceed={handleProceedToTest}
+                    testName={selectedTestName}
+                />
             </div>
         </div>
     );
