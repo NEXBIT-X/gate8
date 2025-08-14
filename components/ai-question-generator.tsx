@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { 
   Brain, 
   Sparkles, 
@@ -124,11 +125,25 @@ export default function AIQuestionGenerator() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate questions');
+        throw new Error(data.error || `Server error: ${response.status}`);
+      }
+
+      // Validate the response structure
+      if (!data.success) {
+        throw new Error(data.error || 'Generation failed');
+      }
+
+      if (!data.questions || !Array.isArray(data.questions)) {
+        throw new Error('Invalid response format: questions array missing');
+      }
+
+      if (data.questions.length === 0) {
+        throw new Error('No questions were generated. Please try again with different parameters.');
       }
 
       setResult(data);
     } catch (error) {
+      console.error('Question generation error:', error);
       setResult({
         success: false,
         questions: [],
@@ -379,69 +394,260 @@ export default function AIQuestionGenerator() {
 
         {/* Results */}
         {result && (
-          <Card className="p-4 mt-6">
-            <div className="flex items-center gap-2 mb-3">
-              {result.success ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-red-600" />
-              )}
-              <h3 className="font-semibold">
-                {result.success ? 'Success!' : 'Error'}
-              </h3>
-            </div>
-
-            {result.success ? (
-              <div className="space-y-3">
-                <p className="text-sm text-green-600">{result.message}</p>
-                
-                {result.metadata && (
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <BarChart3 className="h-4 w-4" />
-                      <span>Generated: {result.metadata.totalGenerated}</span>
-                    </div>
-                    
-                    {result.pushedToTest && result.testInfo && (
-                      <div className="text-blue-600">
-                        Added to: {result.testInfo.test_name}
-                      </div>
-                    )}
-                  </div>
+          <div className="space-y-4 mt-6">
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                {result.success ? (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 text-red-600" />
                 )}
-
-                {result.metadata && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div>
-                      <strong>By Subject:</strong>
-                      <ul className="mt-1 space-y-1">
-                        {Object.entries(result.metadata.bySubject).map(([subject, count]) => (
-                          <li key={subject} className="flex justify-between">
-                            <span className="truncate">{subject}</span>
-                            <span>{count}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    
-                    <div>
-                      <strong>By Type:</strong>
-                      <ul className="mt-1 space-y-1">
-                        {Object.entries(result.metadata.byType).map(([type, count]) => (
-                          <li key={type} className="flex justify-between">
-                            <span>{type}</span>
-                            <span>{count}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
+                <h3 className="font-semibold">
+                  {result.success ? 'Generation Complete!' : 'Error'}
+                </h3>
               </div>
-            ) : (
-              <p className="text-sm text-red-600">{result.error}</p>
+
+              {result.success ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-green-600">{result.message}</p>
+                  
+                  {result.metadata && (
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-1">
+                        <BarChart3 className="h-4 w-4" />
+                        <span>Generated: {result.metadata.totalGenerated}</span>
+                      </div>
+                      
+                      {result.pushedToTest && result.testInfo && (
+                        <div className="text-blue-600">
+                          Added to: {result.testInfo.test_name}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {result.metadata && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <strong>By Subject:</strong>
+                        <ul className="mt-1 space-y-1">
+                          {Object.entries(result.metadata.bySubject).map(([subject, count]) => (
+                            <li key={subject} className="flex justify-between">
+                              <span className="truncate">{subject}</span>
+                              <span>{count}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div>
+                        <strong>By Type:</strong>
+                        <ul className="mt-1 space-y-1">
+                          {Object.entries(result.metadata.byType).map(([type, count]) => (
+                            <li key={type} className="flex justify-between">
+                              <span>{type}</span>
+                              <span>{count}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-red-600">{result.error}</p>
+              )}
+            </Card>
+
+            {/* Generated Questions Display */}
+            {result.success && result.questions && result.questions.length > 0 && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <BookOpen className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold">Generated Questions ({result.questions.length})</h3>
+                </div>
+                
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {result.questions.map((question, index) => (
+                    <div key={index} className="border rounded-lg p-4 bg-muted/20">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            Q{index + 1}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {question.question_type}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {question.marks} marks
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {question.difficulty}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => analyzeQuestionQuality(question.question_text, question.question_type, question.options)}
+                            disabled={isAnalyzing}
+                          >
+                            <Target className="h-3 w-3 mr-1" />
+                            Analyze
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => enhanceQuestion(question.question_text, question.question_type, question.subject)}
+                            disabled={isEnhancing}
+                          >
+                            <Wand2 className="h-3 w-3 mr-1" />
+                            Enhance
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <p className="font-medium text-sm">
+                          <span className="text-muted-foreground">Subject:</span> {question.subject}
+                        </p>
+                        <p className="font-medium text-sm">
+                          <span className="text-muted-foreground">Topic:</span> {question.topic}
+                        </p>
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-medium">Question:</span> {question.question_text}
+                        </p>
+                        
+                        {question.options && question.options.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="font-medium text-sm">Options:</p>
+                            <div className="grid grid-cols-1 gap-1 ml-4">
+                              {question.options.map((option: string, optionIndex: number) => (
+                                <div key={optionIndex} className="flex items-center gap-2">
+                                  <span className="text-xs font-mono bg-muted px-1 rounded">
+                                    {String.fromCharCode(65 + optionIndex)}
+                                  </span>
+                                  <span className="text-sm">{option}</span>
+                                  {(Array.isArray(question.correct_answer) 
+                                    ? question.correct_answer.includes(option)
+                                    : question.correct_answer === option) && (
+                                    <CheckCircle className="h-3 w-3 text-green-600" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="space-y-1">
+                          <p className="font-medium text-sm">
+                            Correct Answer: 
+                            <span className="ml-2 text-green-600 font-mono">
+                              {Array.isArray(question.correct_answer) 
+                                ? question.correct_answer.join(', ') 
+                                : question.correct_answer}
+                            </span>
+                          </p>
+                          <p className="font-medium text-sm">
+                            Marks: <span className="text-blue-600">{question.marks}</span>
+                            {question.negative_marks > 0 && (
+                              <span className="ml-2 text-red-600">
+                                (-{question.negative_marks} penalty)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        
+                        {question.explanation && (
+                          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded">
+                            <p className="font-medium text-sm text-blue-800 dark:text-blue-200">
+                              Explanation:
+                            </p>
+                            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                              {question.explanation}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             )}
-          </Card>
+
+            {/* Gemini Enhancement Results */}
+            {qualityReport && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="h-5 w-5 text-orange-600" />
+                  <h3 className="font-semibold">Quality Analysis</h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Overall Score:</span>
+                    <Badge variant={qualityReport.score >= 80 ? "default" : qualityReport.score >= 60 ? "secondary" : "destructive"}>
+                      {qualityReport.score}/100
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Difficulty Assessment:</span>
+                    <Badge variant="outline">{qualityReport.difficulty_assessment}</Badge>
+                  </div>
+                  {qualityReport.issues.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-red-600">Issues Found:</p>
+                      <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                        {qualityReport.issues.map((issue, index) => (
+                          <li key={index}>{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {qualityReport.suggestions.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-blue-600">Suggestions:</p>
+                      <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
+                        {qualityReport.suggestions.map((suggestion, index) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {enhancement && (
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Wand2 className="h-5 w-5 text-purple-600" />
+                  <h3 className="font-semibold">Question Enhancement</h3>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Original:</p>
+                    <p className="text-sm bg-gray-50 p-2 rounded">{enhancement.original_question}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-600">Enhanced:</p>
+                    <p className="text-sm bg-green-50 p-2 rounded">{enhancement.improved_question}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Improvements Made:</p>
+                    <ul className="list-disc list-inside text-sm space-y-1">
+                      {enhancement.improvements_made.map((improvement, index) => (
+                        <li key={index}>{improvement}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-purple-600">Enhanced Explanation:</p>
+                    <p className="text-sm bg-purple-50 p-2 rounded">{enhancement.explanation_enhanced}</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
         )}
       </div>
     </Card>
