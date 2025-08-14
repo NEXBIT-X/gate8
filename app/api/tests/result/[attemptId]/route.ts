@@ -47,40 +47,62 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
     }
 
-    // Get question details separately since the join might not work with integer foreign key
-    let transformedResponses = [];
-    if (responses && responses.length > 0) {
-      const questionIds = responses.map(r => r.question_id);
-      const { data: questions, error: questionsError } = await supabase
-        .from('questions')
-        .select('*')
-        .in('id', questionIds);
+    // Get ALL questions from the test (not just answered ones)
+    const { data: allQuestions, error: questionsError } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('test_id', attempt.test_id)
+      .order('id');
 
-      if (!questionsError && questions) {
-        const questionMap = new Map(questions.map(q => [q.id, q]));
-        transformedResponses = responses.map(response => ({
-          ...response,
-          question: questionMap.get(response.question_id)
-        }));
-      } else {
-        transformedResponses = responses;
-      }
+    if (questionsError) {
+      console.error('Error fetching questions:', questionsError);
+      return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
     }
 
-    // Calculate comprehensive statistics
-    const totalQuestions = transformedResponses.length;
-    const answeredQuestions = transformedResponses.filter(r => r.marks_obtained !== null).length;
-    const correctAnswers = transformedResponses.filter(r => r.is_correct).length;
-    const incorrectAnswers = transformedResponses.filter(r => !r.is_correct && r.marks_obtained !== null).length;
+    // Create a map of responses by question_id for quick lookup
+    const responseMap = new Map(responses?.map(r => [r.question_id, r]) || []);
+
+    // Transform all questions to include response data (or null if unanswered)
+    const transformedResponses = allQuestions?.map(question => {
+      const response = responseMap.get(question.id);
+      
+      if (response) {
+        // Question was answered
+        return {
+          ...response,
+          question
+        };
+      } else {
+        // Question was not answered - create a mock response
+        return {
+          id: `unanswered-${question.id}`,
+          attempt_id: attemptId,
+          question_id: question.id,
+          user_answer: null,
+          is_correct: false,
+          marks_obtained: 0,
+          time_taken_seconds: 0,
+          created_at: attempt.created_at,
+          updated_at: attempt.created_at,
+          question,
+          unanswered: true // Flag to identify unanswered questions
+        };
+      }
+    }) || [];
+
+    // Calculate comprehensive statistics based on ALL questions
+    const totalQuestions = allQuestions?.length || 0;
+    const answeredQuestions = responses?.length || 0; // Count actual responses, not based on marks
+    const correctAnswers = responses?.filter(r => r.is_correct).length || 0;
+    const incorrectAnswers = responses?.filter(r => !r.is_correct).length || 0;
     const unansweredQuestions = totalQuestions - answeredQuestions;
     
     // Calculate total score (including negative marks)
-    const totalScore = transformedResponses.reduce((sum, response) => {
+    const totalScore = responses?.reduce((sum, response) => {
       return sum + (response.marks_obtained || 0);
-    }, 0);
+    }, 0) || 0;
 
     const totalPossibleMarks = attempt.total_marks || 0;
-    const percentage = attempt.percentage || 0;
 
     const result = {
       attempt,
@@ -89,7 +111,6 @@ export async function GET(
       score: {
         totalScore,
         totalPossibleMarks,
-        percentage,
         totalQuestions,
         answeredQuestions,
         correctAnswers,

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { unshuffleAnswers, evaluateShuffledAnswers, type UserAnswer } from '@/lib/utils/answerEvaluation';
+import type { ShuffleConfig } from '@/lib/utils/shuffle';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,71 +36,82 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Test already completed' }, { status: 400 });
     }
 
-    // Get the question to check correct answer
+    // Get shuffle configuration from attempt
+    const shuffleConfig: ShuffleConfig | undefined = attempt.answers?._shuffle_config;
+    
+    if (!shuffleConfig) {
+      return NextResponse.json({ error: 'Shuffle configuration not found' }, { status: 400 });
+    }
+
+    // Convert shuffled answer back to original question/option mapping
+    const userAnswers: UserAnswer[] = [{
+      question_id: questionId,
+      answer: answer
+    }];
+    
+    const unshuffledAnswers = unshuffleAnswers(userAnswers, shuffleConfig);
+    const unshuffled = unshuffledAnswers[0];
+    
+    if (!unshuffled) {
+      return NextResponse.json({ error: 'Failed to unshuffle answer' }, { status: 400 });
+    }
+
+    // Get the original question using the unshuffled question ID
     const { data: question, error: questionError } = await supabase
       .from('questions')
       .select('*')
-      .eq('id', questionId)
+      .eq('id', unshuffled.original_question_id)
       .single();
 
     if (questionError || !question) {
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
-    // Evaluate the answer based on question type
+    // Evaluate the unshuffled answer against the original question
     let isCorrect = false;
     let marksObtained = 0;
 
     switch (question.question_type) {
       case 'MCQ':
-        // For MCQ, compare with the correct_answer field (string)
-        isCorrect = question.correct_answer === answer;
-        marksObtained = isCorrect ? question.marks : -question.negative_marks;
+        isCorrect = question.correct_answer === unshuffled.original_answer;
+        marksObtained = isCorrect ? question.marks : (unshuffled.original_answer !== '' ? -question.negative_marks : 0);
         break;
         
       case 'MSQ':
-        // For MSQ, the correct_answer might be a comma-separated string or JSON
-        // Since your schema uses text, let's handle it properly
         let correctAnswers: string[] = [];
         try {
-          // Try parsing as JSON first
           correctAnswers = JSON.parse(question.correct_answer);
         } catch {
-          // If not JSON, assume comma-separated
           correctAnswers = question.correct_answer.split(',').map((a: string) => a.trim());
         }
         
-        if (Array.isArray(answer)) {
+        if (Array.isArray(unshuffled.original_answer)) {
           const correctSet = new Set(correctAnswers);
-          const answerSet = new Set(answer);
+          const answerSet = new Set(unshuffled.original_answer);
           
-          // Check if sets are equal
           isCorrect = correctSet.size === answerSet.size && 
                      [...correctSet].every(x => answerSet.has(x));
         }
-        marksObtained = isCorrect ? question.marks : -question.negative_marks;
+        marksObtained = isCorrect ? question.marks : (unshuffled.original_answer && unshuffled.original_answer.length > 0 ? -question.negative_marks : 0);
         break;
         
       case 'NAT':
-        // For NAT, compare numerical values with tolerance
-        const numAnswer = parseFloat(answer);
+        const numAnswer = parseFloat(String(unshuffled.original_answer));
         const correctNum = parseFloat(question.correct_answer);
         if (!isNaN(numAnswer) && !isNaN(correctNum)) {
-          // Allow small floating point errors (0.01 tolerance)
           isCorrect = Math.abs(numAnswer - correctNum) <= 0.01;
         }
-        // NAT questions typically don't have negative marking
         marksObtained = isCorrect ? question.marks : 0;
         break;
     }
 
-    // Update or insert question response
+    // Update or insert question response (use original question ID for consistency)
     const { error: responseError } = await supabase
       .from('user_question_responses')
       .upsert({
         attempt_id: attemptId,
-        question_id: questionId,
-        user_answer: typeof answer === 'object' ? JSON.stringify(answer) : String(answer),
+        question_id: unshuffled.original_question_id, // Use original question ID
+        user_answer: typeof unshuffled.original_answer === 'object' ? JSON.stringify(unshuffled.original_answer) : String(unshuffled.original_answer),
         is_correct: isCorrect,
         marks_obtained: marksObtained
       });
@@ -108,10 +121,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save answer' }, { status: 500 });
     }
 
-    // Update attempt answers
+    // Update attempt answers (store shuffled answer with shuffled question ID for UI consistency)
     const updatedAnswers = {
       ...attempt.answers,
-      [questionId]: answer
+      [questionId]: answer // Keep shuffled question ID for frontend
     };
 
     const { error: updateError } = await supabase
@@ -128,7 +141,10 @@ export async function POST(request: NextRequest) {
       success: true,
       isCorrect,
       marksObtained,
-      questionType: question.question_type
+      questionType: question.question_type,
+      originalQuestionId: unshuffled.original_question_id,
+      shuffledAnswer: answer,
+      originalAnswer: unshuffled.original_answer
     });
   } catch (error) {
     console.error('Error in POST /api/tests/submit-answer:', error);

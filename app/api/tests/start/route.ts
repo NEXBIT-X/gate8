@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { NextRequest, NextResponse } from 'next/server';
+import { shuffleQuestionsForUser, generateShuffleConfig, verifyShuffleUniqueness, type Question } from '@/lib/utils/shuffle';
 
 export async function POST(request: NextRequest) {
   try {
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
     console.log(`Found ${questions.length} questions for test ${testId}`);
 
     // Transform questions to match the expected interface
-    const transformedQuestions = questions.map(q => ({
+    const transformedQuestions: Question[] = questions.map(q => ({
       id: q.id, // This is already correct (serial/integer)
       test_id: q.test_id,
       question: q.question, // Your schema uses 'question', not 'question_text'
@@ -188,13 +189,24 @@ export async function POST(request: NextRequest) {
     console.log('Transformed questions sample:', transformedQuestions[0]);
     console.log('All transformed questions count:', transformedQuestions.length);
 
+    // Shuffle questions and options for this specific user
+    const shuffledQuestions = shuffleQuestionsForUser(transformedQuestions, user.id, testId);
+    const shuffleConfig = generateShuffleConfig(shuffledQuestions);
+    
+    console.log('Questions shuffled for user:', user.id);
+    console.log('Shuffle config generated');
+    console.log('Shuffle verification:', verifyShuffleUniqueness(shuffledQuestions));
+
     // Create new test attempt with only the columns that exist in your schema
     console.log('Creating test attempt for user:', user.id, 'test:', testId);
     
     const attemptData = {
       user_id: user.id,
       test_id: testId,
-      answers: {},
+      answers: {
+        // Store shuffle configuration separately from actual answers
+        _shuffle_config: shuffleConfig
+      },
       is_completed: false
       // started_at will be set automatically by your schema default
     };
@@ -252,13 +264,25 @@ export async function POST(request: NextRequest) {
 
     console.log('Test attempt created successfully:', attempt.id);
 
+    // Return shuffled questions for this user (without correct answers for security)
+    const questionsForClient = shuffledQuestions.map(q => ({
+      id: q.id,
+      question: q.question,
+      question_type: q.question_type,
+      options: q.options,
+      marks: q.marks,
+      negative_marks: q.negative_marks
+      // Note: correct_answer and shuffle_map are excluded for security
+    }));
+
     return NextResponse.json({ 
       success: true,
       attempt,
       test: {
         ...test,
-        questions: transformedQuestions
-      }
+        questions: questionsForClient
+      },
+      message: `Questions shuffled uniquely for this attempt`
     });
   } catch (error) {
     console.error('Error in POST /api/tests/start:', error);

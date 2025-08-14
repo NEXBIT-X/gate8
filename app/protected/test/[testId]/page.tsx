@@ -141,14 +141,15 @@ const TestInterface = () => {
                 throw new Error(errorData.error || 'Failed to complete test');
             }
 
-            router.push(`/protected/test/${testId}/result?attemptId=${attemptId}`);
+            // Redirect to dashboard instead of test results
+            router.push('/protected/dash');
         } catch (error) {
             console.error('Error completing test:', error);
             setError(error instanceof Error ? error.message : 'Failed to complete test');
         } finally {
             setIsSubmitting(false);
         }
-    }, [attemptId, isSubmitting, router, testId]);
+    }, [attemptId, isSubmitting, router]);
 
     useEffect(() => {
         if (timeRemaining <= 0) return;

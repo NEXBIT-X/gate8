@@ -64,6 +64,9 @@ export default {
       perspective: {
         near: "300px",
       },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(circle at 50% 100%, var(--tw-gradient-stops))',
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
