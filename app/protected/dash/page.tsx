@@ -46,13 +46,13 @@ const Section = ({ title, items, empty, onStartTest, startingTestId, onViewResul
     onViewResult?: (attemptId: string) => void;
     onContinueTest?: (testId: string, attemptId: string) => void;
 }) => (
-    <div className="rounded border p-4 space-y-3">
+    <div className="rounded border p-4 ">
         <h2 className="text-lg font-semibold">{title}</h2>
         <hr />
         {items.length === 0 && <p className="text-sm">{empty}</p>}
         <ul className="space-y-2">
             {items.map(t => (
-                <li key={t.id} className="border rounded p-3 flex flex-col gap-1">
+                <li key={t.id} className="w-full bg-card border-border border rounded p-3 flex flex-col gap-1">
                     <div className="flex justify-between flex-wrap gap-2">
                         <span className="font-medium">{t.title}</span>
                         <div className="flex gap-1 flex-wrap">
@@ -429,8 +429,8 @@ const Dash = () => {
                                 Start Practice
                             </button>
                         </div>
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                            <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTestClick} startingTestId={startingTestId} />
+                        <div className="gap-6 grid  ">
+                            <Section  title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTestClick} startingTestId={startingTestId} />
                             <Section title="Attempted Tests" items={attempted} empty="You haven't attempted any tests yet." onViewResult={handleViewResult} onContinueTest={handleContinueTest} />
                             <Section title="Upcoming Tests" items={upcoming} empty="No upcoming tests scheduled." />
                             <Section title="Ended Tests" items={ended} empty="No tests have ended yet." />

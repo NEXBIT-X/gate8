@@ -293,7 +293,7 @@ const ViewReportsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <p>Loading analytics...</p>
       </div>
     );
@@ -301,7 +301,7 @@ const ViewReportsPage = () => {
 
   if (error || !analyticsData) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || 'No data available'}</p>
           <Button onClick={() => window.location.reload()}>
@@ -313,7 +313,7 @@ const ViewReportsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
+    <div className="min-h-screen  p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
@@ -325,7 +325,7 @@ const ViewReportsPage = () => {
             <select
               value={selectedTest}
               onChange={(e) => setSelectedTest(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+              className="card border border-gray-700 rounded-lg px-4 py-2 text-white"
               aria-label="Select test to filter reports"
             >
               <option value="all">All Tests</option>
@@ -346,26 +346,26 @@ const ViewReportsPage = () => {
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">Total Students</CardTitle>
               <Users className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{analyticsData.totalStudents}</div>
+              <div className="text-2xl font-bold ">{analyticsData.totalStudents}</div>
               <p className="text-xs text-gray-500">
                 {analyticsData.totalAttempts} total attempts
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">Average Score</CardTitle>
               <TrendingUp className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-2xl font-bold ">
                 {analyticsData.averageScore.toFixed(1)}/{analyticsData.reports[0]?.total_possible_marks || 0}
               </div>
               <p className="text-xs text-gray-500">
@@ -374,13 +374,13 @@ const ViewReportsPage = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">Questions Attempted</CardTitle>
               <Target className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-2xl font-bold ">
                 {analyticsData.averageQuestionsAttempted.toFixed(1)}
               </div>
               <p className="text-xs text-gray-500">
@@ -389,13 +389,13 @@ const ViewReportsPage = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-card border-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">Avg Time Spent</CardTitle>
               <BarChart3 className="h-4 w-4 text-neutral-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">
+              <div className="text-2xl font-bold">
                 {Math.round(analyticsData.averageTimeSpent)} min
               </div>
               <p className="text-xs text-gray-500">
@@ -408,9 +408,9 @@ const ViewReportsPage = () => {
         {/* Chart Analytics Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Performance Distribution Chart */}
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white flex items-center">
+              <CardTitle className=" flex items-center">
                 <BarChart3 className="w-5 h-5 mr-2 text-neutral-400" />
                 Performance Distribution
               </CardTitle>
@@ -429,9 +429,9 @@ const ViewReportsPage = () => {
           </Card>
 
           {/* Time Distribution Chart */}
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white flex items-center">
+              <CardTitle className=" flex items-center">
                 <Target className="w-5 h-5 mr-2 text-neutral-400" />
                 Time Distribution
               </CardTitle>
@@ -452,9 +452,9 @@ const ViewReportsPage = () => {
 
         {/* Test-wise Performance Chart */}
         {analyticsData.reports.length > 0 && (
-          <Card className="bg-gray-900 border-gray-800 mb-8">
+          <Card className="bg-card border-border mb-8">
             <CardHeader>
-              <CardTitle className="text-white flex items-center">
+              <CardTitle className=" flex items-center">
                 <TrendingUp className="w-5 h-5 mr-2 text-neutral-400" />
                 Test-wise Average Performance
               </CardTitle>
@@ -475,9 +475,9 @@ const ViewReportsPage = () => {
 
         {/* Subject-wise Analytics */}
         {Object.keys(analyticsData.subjectAnalytics).length > 0 && (
-          <Card className="bg-gray-900 border-gray-800 mb-8">
+          <Card className="bg-card border-border mb-8">
             <CardHeader>
-              <CardTitle className="text-white flex items-center">
+              <CardTitle className=" flex items-center">
                 <BookOpen className="w-5 h-5 mr-2" />
                 Subject-wise Performance
               </CardTitle>
@@ -486,20 +486,20 @@ const ViewReportsPage = () => {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.entries(analyticsData.subjectAnalytics).map(([subject, stats]) => (
-                  <div key={subject} className="bg-gray-800 p-4 rounded-lg">
-                    <h3 className="font-semibold text-white mb-2">{subject}</h3>
+                  <div key={subject} className="card bg-gray-800 p-4 rounded-lg">
+                    <h3 className="font-semibold  mb-2">{subject}</h3>
                     <div className="space-y-2">
-                      <div className="flex justify-between">
+                      <div  className="flex justify-between">
                         <span className="text-gray-400 text-sm">Average Score:</span>
-                        <span className="text-white">{stats.averageScore.toFixed(1)}</span>
+                        <span className="">{stats.averageScore.toFixed(1)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400 text-sm">Average %:</span>
-                        <span className="text-white">{stats.averagePercentage.toFixed(1)}%</span>
+                        <span className="">{stats.averagePercentage.toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400 text-sm">Attempts:</span>
-                        <span className="text-white">{stats.totalAttempts}</span>
+                        <span className="">{stats.totalAttempts}</span>
                       </div>
                     </div>
                   </div>
@@ -510,7 +510,7 @@ const ViewReportsPage = () => {
         )}
 
         {/* Individual Student Reports */}
-        <Card className="bg-gray-900 border-gray-800">
+        <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-white">Individual Student Reports</CardTitle>
             <CardDescription>Detailed performance data for each student</CardDescription>
@@ -532,10 +532,10 @@ const ViewReportsPage = () => {
                 </thead>
                 <tbody>
                   {analyticsData.reports.map((report) => (
-                    <tr key={report.attempt_id} className="border-b border-gray-800 hover:bg-gray-800">
+                    <tr key={report.attempt_id} className="border-b border-gray-800 ">
                       <td className="p-3">
                         <div>
-                          <div className="text-white font-medium">
+                          <div className=" font-medium">
                             {report.full_name || report.email.split('@')[0]}
                           </div>
                           <div className="text-gray-400 text-xs">{report.email}</div>
@@ -543,7 +543,7 @@ const ViewReportsPage = () => {
                       </td>
                       <td className="p-3 text-gray-300">{report.test_title}</td>
                       <td className="p-3">
-                        <span className="text-white font-medium">
+                        <span className=" font-medium">
                           {report.total_score}/{report.total_possible_marks}
                         </span>
                       </td>

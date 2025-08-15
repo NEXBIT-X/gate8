@@ -87,3 +87,16 @@
     transform: rotateX(0deg);
   }
 }
+
+.card{
+  background: var(--card);
+  border: var(--border);
+  color: var(--card-foreground);
+  border-radius: var(--radius);
+}
+
+.qc svg{
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}

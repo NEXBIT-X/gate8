@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Brain, 
   Sparkles, 
   Settings, 
   Upload, 
@@ -216,9 +215,8 @@ export default function AIQuestionGenerator() {
   ];
 
   return (
-    <Card className="p-6 max-w-4xl mx-auto">
+    <Card className="qc bg-card rounded-lg border p-6">
       <div className="flex items-center gap-2 mb-6">
-        <Brain className="h-6 w-6 text-blue-600" />
         <h2 className="text-2xl font-bold">AI Question Generator</h2>
         <Sparkles className="h-5 w-5 text-yellow-500" />
       </div>
@@ -370,7 +368,7 @@ export default function AIQuestionGenerator() {
         <Button
           onClick={handleGenerate}
           disabled={isGenerating || selectedSubjects.length === 0}
-          className="w-full"
+          className="text-primary bg-blue-50 dark:bg-blue-950/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 w-full"
           size="lg"
         >
           {isGenerating ? (
@@ -653,3 +651,4 @@ export default function AIQuestionGenerator() {
     </Card>
   );
 }
+

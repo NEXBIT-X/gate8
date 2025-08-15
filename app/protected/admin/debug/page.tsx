@@ -69,6 +69,7 @@ export default function DebugPage() {
         <Button 
           onClick={() => testAPI('/api/tests')} 
           disabled={loading}
+          className='text-primary bg-card border-border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800'
         >
           Test GET /api/tests
         </Button>
@@ -76,6 +77,7 @@ export default function DebugPage() {
         <Button 
           onClick={() => testAPI('/api/tests/start', 'POST', { testId: '11111111-2222-3333-4444-555555555555' })} 
           disabled={loading}
+          className='text-primary bg-card border-border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800'
         >
           Test POST /api/tests/start
         </Button>
@@ -94,7 +96,7 @@ export default function DebugPage() {
             is_active: true
           })} 
           disabled={loading}
-          className="bg-purple-600 hover:bg-purple-700"
+          className="text-primary bg-card border-border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           🔧 Test Admin: Create Test
         </Button>
@@ -124,7 +126,7 @@ export default function DebugPage() {
             ]
           })} 
           disabled={loading}
-          className="bg-purple-600 hover:bg-purple-700"
+          className="text-primary bg-card border-border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           🔧 Test Admin: Create Questions
         </Button>
@@ -150,7 +152,7 @@ export default function DebugPage() {
             }));
           }} 
           disabled={loading}
-          className="bg-green-600 hover:bg-green-700"
+          className="text-primary bg-card border-border rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           🔍 Check Environment
         </Button>
