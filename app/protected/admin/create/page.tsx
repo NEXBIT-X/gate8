@@ -269,13 +269,13 @@ const CreateTestPage = () => {
             <p className="text-muted-foreground">Design and configure a new examination</p>
           </div>
           <div className="flex gap-2">
-            <button
+            <button title='a'
               onClick={fillDemoData}
               className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
               Fill Demo Data
             </button>
-            <button
+            <button title='a'
               onClick={() => router.back()}
               className="px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
@@ -306,7 +306,8 @@ const CreateTestPage = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Test Title *</label>
-                  <input
+                  < input 
+                  title="a"
                     type="text"
                     value={testData.title}
                     onChange={(e) => handleTestChange('title', e.target.value)}
@@ -328,7 +329,8 @@ const CreateTestPage = () => {
 
                 <div>
                   <label className="block text-sm font-medium mb-1">Duration (minutes) *</label>
-                  <input
+                  < input 
+                  title="a"
                     type="number"
                     value={testData.duration_minutes}
                     onChange={(e) => handleTestChange('duration_minutes', parseInt(e.target.value))}
@@ -340,7 +342,8 @@ const CreateTestPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Start Time *</label>
-                    <input
+                    < input 
+                    title="a"
                       type="datetime-local"
                       value={testData.start_time}
                       onChange={(e) => handleTestChange('start_time', e.target.value)}
@@ -350,7 +353,8 @@ const CreateTestPage = () => {
 
                   <div>
                     <label className="block text-sm font-medium mb-1">End Time *</label>
-                    <input
+                    < input 
+                    title="a"
                       type="datetime-local"
                       value={testData.end_time}
                       onChange={(e) => handleTestChange('end_time', e.target.value)}
@@ -360,7 +364,8 @@ const CreateTestPage = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <input
+                  < input 
+                  title="a"
                     type="checkbox"
                     id="is_active"
                     checked={testData.is_active}
@@ -390,7 +395,8 @@ const CreateTestPage = () => {
                           {question.question_type} • {question.marks} marks • -{question.negative_marks} penalty
                         </p>
                       </div>
-                      <button
+                      <button title='a'
+                      
                         onClick={() => removeQuestion(question.id)}
                         className="text-red-500 hover:text-red-700 p-1"
                       >
@@ -433,6 +439,7 @@ const CreateTestPage = () => {
                 <div>
                   <label className="block text-sm font-medium mb-1">Question Type *</label>
                   <select
+                    title="a"
                     value={currentQuestion.question_type}
                     onChange={(e) => {
                       const type = e.target.value as 'MCQ' | 'MSQ' | 'NAT';
@@ -463,7 +470,8 @@ const CreateTestPage = () => {
                       {currentQuestion.options?.map((option, index) => (
                         <div key={index} className="flex items-center gap-2">
                           <span className="text-sm font-medium w-6">{String.fromCharCode(65 + index)}.</span>
-                          <input
+                          < input 
+                          title="a"
                             type="text"
                             value={option}
                             onChange={(e) => handleOptionChange(index, e.target.value)}
@@ -481,6 +489,7 @@ const CreateTestPage = () => {
                   <label className="block text-sm font-medium mb-1">Correct Answer *</label>
                   {currentQuestion.question_type === 'MCQ' && (
                     <select
+                    title='a'
                       value={currentQuestion.correct_answer as string}
                       onChange={(e) => handleQuestionChange('correct_answer', e.target.value)}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -498,7 +507,8 @@ const CreateTestPage = () => {
                     <div className="space-y-2">
                       {currentQuestion.options?.map((option, index) => (
                         <div key={index} className="flex items-center gap-2">
-                          <input
+                          < input 
+                          title="a"
                             type="checkbox"
                             checked={(currentQuestion.correct_answer as string[])?.includes(option) || false}
                             onChange={(e) => {
@@ -518,7 +528,8 @@ const CreateTestPage = () => {
                   )}
 
                   {currentQuestion.question_type === 'NAT' && (
-                    <input
+                    < input 
+                    title="a"
                       type="text"
                       value={currentQuestion.correct_answer as string}
                       onChange={(e) => handleQuestionChange('correct_answer', e.target.value)}
@@ -532,7 +543,8 @@ const CreateTestPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Marks *</label>
-                    <input
+                    < input 
+                    title="a"
                       type="number"
                       value={currentQuestion.marks}
                       onChange={(e) => handleQuestionChange('marks', parseFloat(e.target.value))}
@@ -544,7 +556,8 @@ const CreateTestPage = () => {
 
                   <div>
                     <label className="block text-sm font-medium mb-1">Negative Marks</label>
-                    <input
+                    < input 
+                    title="a"
                       type="number"
                       value={currentQuestion.negative_marks}
                       onChange={(e) => handleQuestionChange('negative_marks', parseFloat(e.target.value))}
@@ -567,7 +580,7 @@ const CreateTestPage = () => {
                   />
                 </div>
 
-                <button
+                <button title='a'
                   onClick={addQuestion}
                   className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
@@ -580,7 +593,7 @@ const CreateTestPage = () => {
 
         {/* Submit Button */}
         <div className="flex justify-center pt-6">
-          <button
+          <button title='a'
             onClick={handleSubmit}
             disabled={loading || questions.length === 0}
             className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"

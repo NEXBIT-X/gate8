@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function LoginForm({
   className,
@@ -26,6 +26,22 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  // Listen for auth state changes
+  useEffect(() => {
+    const supabase = createClient();
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          // Redirect after successful sign in
+          router.push("/protected/dash");
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const supabase = createClient();
@@ -36,15 +52,17 @@ export function LoginForm({
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        // Remove redirectTo - it's not needed for email/password auth
       });
+      
       if (error) throw error;
-      // Redirect to dashboard after successful login
-      router.push("/protected/dash");
+      
+      // Don't use router.push here - let the auth state listener handle it
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Only set loading to false on error
     }
+    // Don't set loading to false here - let the auth state change handle it
   };
 
   return (
