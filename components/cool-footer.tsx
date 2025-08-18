@@ -16,12 +16,11 @@ export function CoolFooter() {
               <Logo/>
             </div>
             <p className="text-muted-foreground mb-4 max-w-md">
-              Advanced examination platform built with Next.js, Supabase, and modern web technologies. 
-              Empowering students and educators with seamless testing experiences.
+              GATE Mock Test Platform is an advanced online examination system designed for students and educators preparing for the GATE exam. 
             </p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Zap className="w-4 h-4 text-yellow-500" />
-              <span>Built with cutting-edge technology</span>
+              <span>NEXBIT</span>
             </div>
           </div>
 
@@ -53,51 +52,7 @@ export function CoolFooter() {
           </div>
 
           {/* Resources */}
-          <div>
-            <h3 className="font-semibold mb-4 text-foreground">Built With</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                <a 
-                  href="https://nextjs.org/docs" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground transition-colors"
-                >
-                  Next.js 
-                </a>
-              </li>
-              <li>
-                <a 
-                  href="https://supabase.com/docs" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground transition-colors"
-                >
-                  Supabase 
-                </a>
-              </li>
-              <li>
-                <a 
-                  href="https://tailwindcss.com/docs" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground transition-colors"
-                >
-                  Tailwind CSS
-                </a>
-              </li>
-              <li>
-                <a 
-                  href="https://ui.shadcn.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground transition-colors"
-                >
-                  shadcn/ui
-                </a>
-              </li>
-            </ul>
-          </div>
+          
         </div>
 
         {/* Divider */}
@@ -105,9 +60,7 @@ export function CoolFooter() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             {/* Copyright */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>© {currentYear} G8 Exam System. Made with</span>
-              <Heart className="w-4 h-4 text-red-500 fill-current" />
-              <span>by NEXBIT</span>
+              <span>© {currentYear} GATE Mock Test Platform</span>
             </div>
 
             {/* Social Links */}
@@ -142,21 +95,11 @@ export function CoolFooter() {
               >
                 <Mail className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </a>
+              
             </div>
           </div>
 
-          {/* Tech Stack Badge */}
-          <div className="mt-6 pt-4 border-t border-foreground/10">
-            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
-              <span className="px-2 py-1 rounded-full bg-muted/50">Next.js 15</span>
-              <span className="px-2 py-1 rounded-full bg-muted/50">React 19</span>
-              <span className="px-2 py-1 rounded-full bg-muted/50">TypeScript</span>
-              <span className="px-2 py-1 rounded-full bg-muted/50">Supabase</span>
-              <span className="px-2 py-1 rounded-full bg-muted/50">Tailwind CSS</span>
-              <span className="px-2 py-1 rounded-full bg-muted/50">Lucide Icons</span>
-             <ThemeSwitcher/>
-            </div>
-          </div>
+
         </div>
       </div>
     </footer>
