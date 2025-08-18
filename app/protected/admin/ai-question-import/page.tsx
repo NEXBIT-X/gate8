@@ -89,6 +89,35 @@ export default function AIQuestionImportPage() {
     } catch (e: any) { setInsertStatus(`Error: ${e.message}`); }
   };
 
+  // Simple markdown renderer focused on fenced code blocks (```lang\ncode```) - returns React nodes
+  const renderQuestionMarkdown = (text?: string | null) => {
+    if (!text) return null;
+    const nodes: any[] = [];
+    const pattern = /```(?:([\w+-]+)\n)?([\s\S]*?)```/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let counter = 0;
+    while ((match = pattern.exec(text)) !== null) {
+      const before = text.slice(lastIndex, match.index);
+      if (before) nodes.push(<div key={`t-${counter}`}>{before}</div>);
+      const lang = match[1];
+      const rawCode = match[2] || '';
+      // Normalize tabs to 4 spaces and preserve existing indentation
+      const code = rawCode.replace(/\t/g, '    ').replace(/\r\n/g, '\n');
+      nodes.push(
+        <pre key={`c-${counter}`} className="bg-gray-900 text-green-200 p-3 rounded overflow-auto text-xs">
+          {lang && <div className="text-xs text-blue-300 mb-1">{lang.toUpperCase()}</div>}
+          <code className="whitespace-pre font-mono text-xs">{code}</code>
+        </pre>
+      );
+      lastIndex = pattern.lastIndex;
+      counter++;
+    }
+    const rest = text.slice(lastIndex);
+    if (rest) nodes.push(<div key={`r-${counter}`}>{rest}</div>);
+    return <>{nodes.map((n, i) => <div key={i} className="whitespace-pre-wrap text-sm text-gray-100">{n}</div>)}</>;
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-5xl space-y-6">
       <Card>
@@ -152,7 +181,16 @@ export default function AIQuestionImportPage() {
                 Warnings:\n{result.warnings.join('\n')}
               </div>
             )}
-            <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-96">{JSON.stringify(result.questions, null, 2)}</pre>
+            <div className="space-y-4">
+              {result.questions.map((q: any, idx: number) => (
+                <div key={idx} className="p-3 border rounded bg-white/5">
+                  <div className="mb-2">
+                    {renderQuestionMarkdown(q.question_text || q.question)}
+                  </div>
+                  <div className="mt-2 text-sm text-green-200"><strong>Answer:</strong> {Array.isArray(q.correct_answer) ? q.correct_answer.join(', ') : q.correct_answer}</div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

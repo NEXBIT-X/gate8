@@ -341,6 +341,35 @@ const TestInterface = () => {
         return { answered, marked, answeredMarked, notAnswered, notVisited };
     };
 
+    // Render text with fenced-code support: code blocks are shown in monospace pre tags
+    const renderQuestionText = (text?: string | null) => {
+        if (!text) return null;
+        const normalized = text.replace(/\t/g, '    ');
+        const nodes: React.ReactNode[] = [];
+        const regex = /```(?:([\w+-]+)\n)?([\s\S]*?)```/g;
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = regex.exec(normalized)) !== null) {
+            const idx = match.index;
+            if (idx > lastIndex) {
+                const before = normalized.slice(lastIndex, idx);
+                nodes.push(<div className="whitespace-pre-line mb-2">{before}</div>);
+            }
+            const code = match[2] || '';
+            nodes.push(
+                <pre key={idx} className="bg-gray-800/10 dark:bg-gray-900/40 p-3 rounded font-mono whitespace-pre text-sm overflow-auto mb-2">
+                    {code}
+                </pre>
+            );
+            lastIndex = regex.lastIndex;
+        }
+        if (lastIndex < normalized.length) {
+            const rest = normalized.slice(lastIndex);
+            nodes.push(<div className="whitespace-pre-line">{rest}</div>);
+        }
+        return <div>{nodes}</div>;
+    };
+
     const renderQuestion = (question: Question) => {
         switch (question.question_type) {
             case 'MCQ':
@@ -617,7 +646,7 @@ const TestInterface = () => {
                     <div className="max-w-none">
                         <h2 className="font-semibold mb-4 text-sm">Question No. {currentQuestionIndex + 1}</h2>
                         <div className="mb-6 text-sm leading-relaxed">
-                            {currentQuestion.question}
+                            {renderQuestionText(currentQuestion.question)}
                         </div>
                         {renderQuestion(currentQuestion)}
                     </div>
