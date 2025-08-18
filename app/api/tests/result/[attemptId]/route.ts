@@ -90,15 +90,19 @@ export async function GET(
       }
     }) || [];
 
-    // Calculate comprehensive statistics based on ALL questions
-    const totalQuestions = allQuestions?.length || 0;
-    const answeredQuestions = responses?.length || 0; // Count actual responses, not based on marks
-    const correctAnswers = responses?.filter(r => r.is_correct).length || 0;
-    const incorrectAnswers = responses?.filter(r => !r.is_correct).length || 0;
-    const unansweredQuestions = totalQuestions - answeredQuestions;
-    
-    // Calculate total score (including negative marks)
-    const totalScore = responses?.reduce((sum, response) => {
+    // Calculate comprehensive statistics based on transformedResponses (covers all questions)
+    const totalQuestions = transformedResponses.length;
+
+    // Use transformedResponses to compute counts so unanswered questions are included and
+    // counts cannot become negative due to duplicate/extra response rows
+    const answeredQuestions = transformedResponses.filter(r => !r.unanswered).length;
+    const correctAnswers = transformedResponses.filter(r => !r.unanswered && r.is_correct).length;
+    const incorrectAnswers = transformedResponses.filter(r => !r.unanswered && !r.is_correct).length;
+    const unansweredQuestions = transformedResponses.filter(r => r.unanswered).length;
+
+    // Calculate total score (including negative marks) from transformedResponses (answered only)
+    const totalScore = transformedResponses.reduce((sum, response: any) => {
+      if (response.unanswered) return sum;
       return sum + (response.marks_obtained || 0);
     }, 0) || 0;
 

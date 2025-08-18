@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { stripDomain } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -536,9 +537,9 @@ const ViewReportsPage = () => {
                       <td className="p-3">
                         <div>
                           <div className=" font-medium">
-                            {report.full_name || report.email.split('@')[0]}
+                            {report.full_name || stripDomain(report.email)}
                           </div>
-                          <div className="text-gray-400 text-xs">{report.email}</div>
+                          <div className="text-gray-400 text-xs">{stripDomain(report.email)}</div>
                         </div>
                       </td>
                       <td className="p-3 text-gray-300">{report.test_title}</td>

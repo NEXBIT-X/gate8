@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { stripDomain } from '@/lib/utils';
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -161,7 +162,7 @@ export default async function AdminDashboard() {
               </p>
             </div>
             <div className="text-sm text-muted-foreground">
-              Logged in as: <span className="font-medium">{user.email}</span>
+              Logged in as: <span className="font-medium">{stripDomain(user.email)}</span>
             </div>
           </div>
         </header>

@@ -29,15 +29,41 @@ const TestInterface = () => {
     const [showMobilePalette, setShowMobilePalette] = useState(false);
     const [showExitWarning, setShowExitWarning] = useState(false);
     const [showBlockedWarning, setShowBlockedWarning] = useState(false);
+    const [showFullscreenNotice, setShowFullscreenNotice] = useState(false);
 
     // Fullscreen management
-    const { state: fullscreenState, enterFullscreen, resetExitAttempts } = useFullscreenManager(
+    // We use a ref to hold the setter so the onExitAttempt callback (passed into the hook)
+    // can call it even though the setter is returned by the hook after invocation.
+    const setExitAttemptsRef = React.useRef<(count: number) => void>(() => {});
+    const { state: fullscreenState, enterFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
         3, // Max 3 exit attempts
         (attempts, maxAttempts) => {
-            console.log(`Fullscreen exit attempt ${attempts}/${maxAttempts}`);
-            setShowExitWarning(true);
-            setTimeout(() => setShowExitWarning(false), 3000);
-        },
+                console.log(`Fullscreen exit attempt ${attempts}/${maxAttempts}`);
+                setShowExitWarning(true);
+                setTimeout(() => setShowExitWarning(false), 3000);
+
+                // Persist exit attempt to server so it is durable for the attempt
+                (async () => {
+                    try {
+                        if (attemptId) {
+                            const res = await fetch('/api/tests/record-exit', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ attemptId })
+                            });
+
+                            if (res.ok) {
+                                const json = await res.json().catch(() => ({}));
+                                const newCount = typeof json.exitAttempts === 'number' ? json.exitAttempts : attempts;
+                                // update local manager state
+                                try { setExitAttemptsRef.current(newCount); } catch (_) {}
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to record exit attempt:', e);
+                    }
+                })();
+            },
         () => {
             console.log('Test blocked due to too many fullscreen exits');
             setShowBlockedWarning(true);
@@ -47,6 +73,11 @@ const TestInterface = () => {
             }, 5000);
         }
     );
+
+    // Wire the returned setter into the ref so the onExitAttempt callback can call it
+    React.useEffect(() => {
+        if (setExitAttempts) setExitAttemptsRef.current = setExitAttempts;
+    }, [setExitAttempts]);
 
     useEffect(() => {
         const loadTestData = async () => {
@@ -136,10 +167,23 @@ const TestInterface = () => {
                 try {
                     await enterFullscreen();
                     console.log('Entered fullscreen mode for test');
+                    // Show a short-lived notice informing user about remaining "backs"
+                    setShowFullscreenNotice(true);
+                    setTimeout(() => setShowFullscreenNotice(false), 5000);
                 } catch (fullscreenError) {
                     console.warn('Could not enter fullscreen:', fullscreenError);
                 }
                 
+                // If the attempt has a persisted exit count, initialize the fullscreen manager with it
+                try {
+                    const attemptsCount = data.attempt?.answers?._exit_attempts;
+                    if (typeof attemptsCount === 'number' && setExitAttempts) {
+                        setExitAttempts(attemptsCount);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+
                 setLoading(false);
             } catch (error) {
                 console.error('Error loading test:', error);
@@ -506,6 +550,25 @@ const TestInterface = () => {
                         <div className="animate-pulse text-lg font-semibold">
                             Auto-submitting test...
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Fullscreen entry notice (short-lived) */}
+            {showFullscreenNotice && fullscreenState.isFullscreen && (
+                <div className="fixed inset-0 z-50 pointer-events-none flex items-start justify-end p-4">
+                    <div className="pointer-events-auto bg-yellow-400 text-black p-3 rounded-lg shadow-lg max-w-sm">
+                        <div className="font-semibold">Only {Math.max(0, fullscreenState.maxExitAttempts - fullscreenState.exitAttempts)} backs available</div>
+                        <div className="text-xs opacity-90">Exits used: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Small persistent badge while in fullscreen */}
+            {fullscreenState.isFullscreen && !showFullscreenNotice && (
+                <div className="fixed top-4 right-4 z-40">
+                    <div className="bg-black/60 text-white px-3 py-1 rounded-full text-xs shadow">
+                        Backs left: {Math.max(0, fullscreenState.maxExitAttempts - fullscreenState.exitAttempts)}/{fullscreenState.maxExitAttempts}
                     </div>
                 </div>
             )}

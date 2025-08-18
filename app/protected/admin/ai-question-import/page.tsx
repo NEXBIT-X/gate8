@@ -18,7 +18,10 @@ export default function AIQuestionImportPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [testId, setTestId] = useState('');
+  const [testTitle, setTestTitle] = useState('AI Imported Test');
+  const [durationMinutes, setDurationMinutes] = useState('60');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [insertStatus, setInsertStatus] = useState<string | null>(null);
 
   const parse = async () => {
@@ -37,18 +40,52 @@ export default function AIQuestionImportPage() {
   };
 
   const insertQuestions = async () => {
-    if (!testId) { setInsertStatus('Provide testId first'); return; }
     if (!result?.questions?.length) { setInsertStatus('No questions parsed'); return; }
-    setInsertStatus('Inserting...');
+    setInsertStatus('Creating test...');
     try {
+      const title = testTitle || `AI Imported Test ${new Date().toISOString()}`;
+      const duration = Number(durationMinutes) || 60;
+
+      // If admin provided explicit start/end times use them, otherwise derive from duration
+      let start_time: string;
+      let end_time: string;
+      if (startTime && endTime) {
+        // startTime/endTime are expected in datetime-local format (local time)
+        const s = new Date(startTime);
+        const e = new Date(endTime);
+        if (!(s instanceof Date) || isNaN(s.getTime()) || !(e instanceof Date) || isNaN(e.getTime())) {
+          throw new Error('Invalid start or end time');
+        }
+        if (s >= e) {
+          throw new Error('End time must be after start time');
+        }
+        start_time = s.toISOString();
+        end_time = e.toISOString();
+      } else {
+        start_time = new Date().toISOString();
+        end_time = new Date(Date.now() + duration * 60 * 1000).toISOString();
+      }
+
+      const testResp = await fetch('/api/admin/tests/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, duration_minutes: duration, start_time, end_time })
+      });
+      const testData = await testResp.json();
+      if (!testResp.ok) throw new Error(testData.error || 'Failed to create test');
+
+      const createdTest = testData.test;
+      if (!createdTest || !createdTest.id) throw new Error('Test creation did not return an id');
+
+      setInsertStatus('Inserting parsed questions into created test...');
       const resp = await fetch('/api/admin/questions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ testId, questions: result.questions })
+        body: JSON.stringify({ testId: createdTest.id, questions: result.questions })
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Insert failed');
-      setInsertStatus(`Inserted ${data.totalQuestions} questions (variant: ${data.variant})`);
+      setInsertStatus(`Created test ${createdTest.id} and inserted ${data.totalQuestions} questions (variant: ${data.variant})`);
     } catch (e: any) { setInsertStatus(`Error: ${e.message}`); }
   };
 
@@ -68,12 +105,39 @@ export default function AIQuestionImportPage() {
             <Button onClick={parse} disabled={loading}>{loading ? 'Parsing...' : 'Parse Questions'}</Button>
             <input
               type="text"
-              placeholder="Test ID to insert into"
+              placeholder="Test Title (optional)"
               className="flex-1 border rounded px-2 py-1 text-sm"
-              value={testId}
-              onChange={e => setTestId(e.target.value)}
+              value={testTitle}
+              onChange={e => setTestTitle(e.target.value)}
             />
-            <Button variant="secondary" onClick={insertQuestions} disabled={!result?.questions?.length}>Insert Parsed</Button>
+            <input
+              type="number"
+              min={1}
+              placeholder="Duration (mins)"
+              className="w-28 border rounded px-2 py-1 text-sm"
+              value={durationMinutes}
+              onChange={e => setDurationMinutes(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3 items-center">
+            <label className="text-xs text-gray-400">Start</label>
+            <input
+              type="datetime-local"
+              className="border rounded px-2 py-1 text-sm"
+              aria-label="start-time"
+              value={startTime}
+              onChange={e => setStartTime(e.target.value)}
+            />
+            <label className="text-xs text-gray-400">End</label>
+            <input
+              type="datetime-local"
+              className="border rounded px-2 py-1 text-sm"
+              aria-label="end-time"
+              value={endTime}
+              onChange={e => setEndTime(e.target.value)}
+            />
+            <div className="text-xs text-gray-400">(optional — if blank, duration is used)</div>
+            <Button variant="secondary" onClick={insertQuestions} disabled={!result?.questions?.length}>Create Test & Insert</Button>
           </div>
           {error && <div className="text-red-600 text-sm">{error}</div>}
           {insertStatus && <div className="text-sm">{insertStatus}</div>}

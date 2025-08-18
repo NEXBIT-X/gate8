@@ -96,6 +96,20 @@ export class FullscreenManager {
   }
 
   /**
+   * Set exit attempts count (used to initialize from persisted value)
+   */
+  setExitAttempts(count: number): void {
+    this.exitAttempts = count;
+    if (this.onExitAttempt) {
+      this.onExitAttempt(this.exitAttempts, this.maxExitAttempts);
+    }
+
+    if (this.exitAttempts >= this.maxExitAttempts) {
+      if (this.onTestBlocked) this.onTestBlocked();
+    }
+  }
+
+  /**
    * Setup detection for fullscreen exit attempts
    */
   private setupExitDetection(): void {
@@ -279,5 +293,10 @@ export function useFullscreenManager(
     enterFullscreen,
     exitFullscreen,
     resetExitAttempts,
+    // Allow parent components to initialize the attempts from persisted state
+    setExitAttempts: (count: number) => {
+      if (managerRef.current) managerRef.current.setExitAttempts(count);
+      setState(prev => ({ ...prev, exitAttempts: count, isTestBlocked: count >= prev.maxExitAttempts }));
+    }
   };
 }
