@@ -544,7 +544,7 @@ const ViewReportsPage = () => {
                       <td className="p-3 text-gray-300">{report.test_title}</td>
                       <td className="p-3">
                         <span className=" font-medium">
-                          {report.total_score}/{report.total_possible_marks}
+                          {parseFloat(String(report.total_score)).toFixed(2)}/{report.total_possible_marks}
                         </span>
                       </td>
                       <td className="p-3">
@@ -554,6 +554,7 @@ const ViewReportsPage = () => {
                           {report.percentage.toFixed(1)}%
                         </Badge>
                       </td>
+                      
                       <td className="p-3 text-gray-300">
                         {report.questions_attempted}/{report.total_questions}
                       </td>

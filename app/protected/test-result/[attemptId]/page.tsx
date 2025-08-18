@@ -173,7 +173,7 @@ const TestResultPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
                         <div>
                             <div className="text-4xl font-bold text-white">
-                                {result.score.obtained || result.score.totalScore || 0}/{result.score.total || result.score.totalPossibleMarks || 0}
+                                {parseFloat(String(result.score.obtained || 0)).toFixed(2) || result.score.totalScore || 0}/{result.score.total || result.score.totalPossibleMarks || 0}
                             </div>
                             <div className="text-sm text-gray-400">Score</div>
                         </div>

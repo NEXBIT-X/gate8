@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Download, TrendingUp, Users, Target, BookOpen, BarChart3 } from 'lucide-react';
 
 const links = [
   { href: "/protected/dash", label: "Dash" },
@@ -13,20 +14,14 @@ const links = [
 export function TestLinks() {
   return (
     <nav
-      style={{
-        display: "flex",
-        gap: "0.75rem",
-        padding: "0.5rem 0.75rem",
-        fontSize: 12,
-        background: "var(--accent, #eee)",
-        borderBottom: "1px solid var(--border, #ccc)",
-      }}
+     className="flex flex-col"
     >
       {links.map(l => (
         <Link
           key={l.href}
           href={l.href}
-          style={{ textDecoration: "underline" }}
+          className="text-4xl text-ellipsis hover:text-violet-500"
+          style={{ textDecoration: "none" }}
           prefetch={false}
         >
           {l.label}
