@@ -12,13 +12,13 @@ export const metadata: Metadata = {
   title: "G8",
   description: "Gate Exam Mock Test Platform",
   openGraph: {
-    title: "My Website",
-    description: "This is my Next.js website",
-    url: "https://mywebsite.com",
-    siteName: "My Website",
+    title: "G8",
+    description: "Gate Exam Mock Test Platform",
+    url: "https://g8-lemon.vercel.app",
+    siteName: "G8",
     images: [
       {
-        url: "https://mywebsite.com/opengraph-image.png", // must be absolute URL
+        url: "https://g8-lemon.vercel.app/opengraph-image.png", // must be absolute URL
         width: 1200,
         height: 630,
         alt: "",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "My Website",
     description: "This is my Next.js website",
-    images: ["https://mywebsite.com/twitter-image.png"],
+    images: ["https://g8-lemon.vercel.app/twitter-image.png"],
   },
 };
 
