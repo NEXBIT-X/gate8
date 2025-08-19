@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true,
       isCorrect,
-      marksObtained,
+      marksObtained: parseFloat(String(marksObtained)).toFixed(2), // Ensure marks are returned as a string with 2 decimal places
       questionType: question.question_type,
       originalQuestionId: unshuffled.original_question_id,
       shuffledAnswer: answer,

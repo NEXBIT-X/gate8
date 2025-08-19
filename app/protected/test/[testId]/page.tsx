@@ -353,19 +353,31 @@ const TestInterface = () => {
             const idx = match.index;
             if (idx > lastIndex) {
                 const before = normalized.slice(lastIndex, idx);
-                nodes.push(<div className="whitespace-pre-line mb-2">{before}</div>);
+                // render normal text as lines with <br/>
+                nodes.push(
+                    <div key={`t-${lastIndex}`} className="whitespace-pre-line mb-2">{
+                        before.split(/\n/).map((line, i) => <span key={i}>{line}<br/></span>)
+                    }</div>
+                );
             }
+            const lang = match[1];
             const code = match[2] || '';
+            // Render code block inside a div.code with explicit <br/> per line
             nodes.push(
-                <pre key={idx} className="bg-gray-800/10 dark:bg-gray-900/40 p-3 rounded font-mono whitespace-pre text-sm overflow-auto mb-2">
-                    {code}
-                </pre>
+                <div key={`c-${idx}`} className="code bg-gray-800/10 dark:bg-gray-900/40 p-3 rounded font-mono text-sm overflow-auto mb-2">
+                    {lang && <div className="text-xs text-blue-300 mb-1">{lang.toUpperCase()}</div>}
+                    <div>{code.split(/\n/).map((line, i) => <div key={i}>{line}<br/></div>)}</div>
+                </div>
             );
             lastIndex = regex.lastIndex;
         }
         if (lastIndex < normalized.length) {
             const rest = normalized.slice(lastIndex);
-            nodes.push(<div className="whitespace-pre-line">{rest}</div>);
+            nodes.push(
+                <div key={`r-${lastIndex}`} className="whitespace-pre-line">{
+                    rest.split(/\n/).map((line, i) => <span key={i}>{line}<br/></span>)
+                }</div>
+            );
         }
         return <div>{nodes}</div>;
     };

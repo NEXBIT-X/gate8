@@ -100,3 +100,9 @@
   height: 1.25rem;
   flex-shrink: 0;
 }
+
+.code{
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: var(--border);
+}

@@ -1,56 +1,160 @@
+// ...existing code...
 "use client";
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-interface ParsedQuestion {
-  question_text: string;
-  question_type: 'MCQ' | 'MSQ' | 'NAT';
-  options?: string[];
-  correct_answer: string | string[];
-  marks: number;
-  negative_marks?: number;
-  explanation?: string;
-}
 
 export default function AIQuestionImportPage() {
   const [rawText, setRawText] = useState('1) What is 2 + 2?\nA) 3\nB) 4\nC) 5\nAnswer: B\n\n2) Select prime numbers (choose two)\nA) 2\nB) 3\nC) 4\nD) 6\nAnswer: A, B');
+  const [parseApi, setParseApi] = useState<'groq' | 'gemini'>('groq');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [testTitle, setTestTitle] = useState('AI Imported Test');
+  const [testTitle, setTestTitle] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [insertStatus, setInsertStatus] = useState<string | null>(null);
 
-  const parse = async () => {
-    setLoading(true); setError(null); setResult(null); setInsertStatus(null);
+  // Split: Parse and Create Test
+  // Multi-call parse: split and parse each question individually
+  const parseQuestions = async () => {
+    if (!rawText || rawText.trim().length === 0) {
+      setError('Please provide questions to parse');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setInsertStatus(null);
     try {
-      const resp = await fetch('/api/admin/questions/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawText })
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Parse failed');
-      setResult(data);
-    } catch (e: any) { setError(e.message); }
-    setLoading(false);
+      setInsertStatus('Splitting input and parsing questions...');
+      // Split on double newlines or numbered question pattern
+      const questionBlocks = rawText
+        .split(/\n\s*\n|(?=\n?\d+\))/)
+        .map(q => q.trim())
+        .filter(q => q.length > 0);
+
+      let allQuestions = [];
+      let warnings = [];
+      for (let i = 0; i < questionBlocks.length; i++) {
+        setInsertStatus(`Parsing question ${i + 1} of ${questionBlocks.length}...`);
+        const block = questionBlocks[i];
+        // Choose endpoint based on selected API
+        const endpoint = parseApi === 'gemini' ? '/api/admin/questions/parse-gemini' : '/api/admin/questions/parse';
+        const parseResp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rawText: block })
+        });
+        const parseData = await parseResp.json();
+        if (!parseResp.ok) {
+          warnings.push(`Q${i + 1}: ${parseData.error || 'Parse failed'}`);
+          continue;
+        }
+        if (parseData.questions && Array.isArray(parseData.questions)) {
+          // For each question, if MCQ/MSQ/NAT and correct_answer is label/index, convert to actual answer text/value
+          const fixedQuestions = parseData.questions.map(q => {
+            // MCQ and MSQ: map label/index to option text
+            if ((q.question_type === 'MCQ' || q.question_type === 'MSQ') && Array.isArray(q.options) && q.options.length > 0 && q.correct_answer) {
+              if (typeof q.correct_answer === 'string') {
+                // If it's a single letter (A, B, C, D), map to index
+                const letterMatch = q.correct_answer.trim().match(/^[A-Z]$/i);
+                let idx = -1;
+                if (letterMatch) {
+                  idx = q.correct_answer.toUpperCase().charCodeAt(0) - 65;
+                } else if (!isNaN(Number(q.correct_answer))) {
+                  idx = Number(q.correct_answer) - 1;
+                }
+                if (idx >= 0 && idx < q.options.length) {
+                  return { ...q, correct_answer: q.options[idx] };
+                }
+                // If it's the actual text, keep as is
+                return { ...q, correct_answer: q.correct_answer };
+              }
+              if (Array.isArray(q.correct_answer)) {
+                const mapped = q.correct_answer.map(ans => {
+                  const letterMatch = (typeof ans === 'string') && ans.trim().match(/^[A-Z]$/i);
+                  let idx = -1;
+                  if (letterMatch) {
+                    idx = ans.toUpperCase().charCodeAt(0) - 65;
+                  } else if (!isNaN(Number(ans))) {
+                    idx = Number(ans) - 1;
+                  }
+                  if (idx >= 0 && idx < q.options.length) {
+                    return q.options[idx];
+                  }
+                  return ans;
+                });
+                return { ...q, correct_answer: mapped };
+              }
+            }
+            // NAT: if correct_answer is a string or array, try to parse as number
+            if (q.question_type === 'NAT' && q.correct_answer !== undefined && q.correct_answer !== null) {
+              // If it's a string that can be a number, convert to number
+              if (typeof q.correct_answer === 'string' && !isNaN(Number(q.correct_answer))) {
+                return { ...q, correct_answer: Number(q.correct_answer) };
+              }
+              // If it's an array with one value, and that value is a number string
+              if (Array.isArray(q.correct_answer) && q.correct_answer.length === 1 && !isNaN(Number(q.correct_answer[0]))) {
+                return { ...q, correct_answer: Number(q.correct_answer[0]) };
+              }
+            }
+            return q;
+          });
+          allQuestions.push(...fixedQuestions);
+        } else {
+          warnings.push(`Q${i + 1}: No questions parsed.`);
+        }
+      }
+      setResult({ questions: allQuestions, warnings });
+      setInsertStatus('Parsed. Review and edit questions below.');
+    } catch (e) {
+      setError(e.message);
+      setInsertStatus(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const insertQuestions = async () => {
-    if (!result?.questions?.length) { setInsertStatus('No questions parsed'); return; }
-    setInsertStatus('Creating test...');
+  const createTest = async () => {
+    if (!result || !result.questions || result.questions.length === 0) {
+      setError('No parsed questions to create test with.');
+      return;
+    }
+    // Validate all questions before sending
+    for (let i = 0; i < result.questions.length; i++) {
+      const q = result.questions[i];
+      if (!q.question_text || !q.question_type) {
+        setError(`Question ${i + 1} is missing text or type.`);
+        return;
+      }
+      if ((q.question_type === 'MCQ' || q.question_type === 'MSQ')) {
+        if (!Array.isArray(q.options) || q.options.length === 0) {
+          setError(`Question ${i + 1} is missing options.`);
+          return;
+        }
+        if (!q.correct_answer || (Array.isArray(q.correct_answer) && q.correct_answer.length === 0)) {
+          setError(`Question ${i + 1} is missing correct answer.`);
+          return;
+        }
+      }
+      if (q.question_type === 'NAT' && (q.correct_answer === undefined || q.correct_answer === '')) {
+        setError(`Question ${i + 1} (NAT) is missing correct answer.`);
+        return;
+      }
+    }
+    setLoading(true);
+    setError(null);
+    setInsertStatus(null);
     try {
-      const title = testTitle || `AI Imported Test ${new Date().toISOString()}`;
+      setInsertStatus('Creating test...');
+      const title = testTitle.trim();
       const duration = Number(durationMinutes) || 60;
-
-      // If admin provided explicit start/end times use them, otherwise derive from duration
-      let start_time: string;
-      let end_time: string;
+      let start_time;
+      let end_time;
       if (startTime && endTime) {
-        // startTime/endTime are expected in datetime-local format (local time)
         const s = new Date(startTime);
         const e = new Date(endTime);
         if (!(s instanceof Date) || isNaN(s.getTime()) || !(e instanceof Date) || isNaN(e.getTime())) {
@@ -65,7 +169,6 @@ export default function AIQuestionImportPage() {
         start_time = new Date().toISOString();
         end_time = new Date(Date.now() + duration * 60 * 1000).toISOString();
       }
-
       const testResp = await fetch('/api/admin/tests/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,127 +176,371 @@ export default function AIQuestionImportPage() {
       });
       const testData = await testResp.json();
       if (!testResp.ok) throw new Error(testData.error || 'Failed to create test');
-
       const createdTest = testData.test;
       if (!createdTest || !createdTest.id) throw new Error('Test creation did not return an id');
-
-      setInsertStatus('Inserting parsed questions into created test...');
-      const resp = await fetch('/api/admin/questions/create', {
+      setInsertStatus('Inserting questions into test...');
+      const questionsResp = await fetch('/api/admin/questions/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ testId: createdTest.id, questions: result.questions })
       });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Insert failed');
-      setInsertStatus(`Created test ${createdTest.id} and inserted ${data.totalQuestions} questions (variant: ${data.variant})`);
-    } catch (e: any) { setInsertStatus(`Error: ${e.message}`); }
+      const questionsData = await questionsResp.json();
+      if (!questionsResp.ok) throw new Error(questionsData.error || 'Failed to insert questions');
+      setInsertStatus(`✅ Success! Created test "${createdTest.title}" (ID: ${createdTest.id}) with ${result.questions.length} questions`);
+      setRawText('');
+      setTestTitle('');
+    } catch (e) {
+      setError(e.message);
+      setInsertStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+  // Helper function to render questions with code formatting
+  const renderQuestionMarkdown = (text: string) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return (
+      <div className="space-y-2">
+        {lines.map((line: string, i: number) => {
+          if (line.includes('[CODE]') && line.includes('[/CODE]')) {
+            const codeMatch = line.match(/\[CODE\](.*?)\[\/CODE\]/);
+            if (codeMatch) {
+              return (
+                <div key={i} className="code bg-gray-800 p-2 rounded text-green-400 font-mono text-sm">
+                  {codeMatch[1]}
+                </div>
+              );
+            }
+          }
+          return line.trim() ? (
+            <div key={i}>{line}</div>
+          ) : (
+            <div key={i} className="h-2"></div>
+          );
+        })}
+      </div>
+    );
   };
 
-  // Simple markdown renderer focused on fenced code blocks (```lang\ncode```) - returns React nodes
-  const renderQuestionMarkdown = (text?: string | null) => {
-    if (!text) return null;
-    const nodes: any[] = [];
-    const pattern = /```(?:([\w+-]+)\n)?([\s\S]*?)```/g;
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-    let counter = 0;
-    while ((match = pattern.exec(text)) !== null) {
-      const before = text.slice(lastIndex, match.index);
-      if (before) nodes.push(<div key={`t-${counter}`}>{before}</div>);
-      const lang = match[1];
-      const rawCode = match[2] || '';
-      // Normalize tabs to 4 spaces and preserve existing indentation
-      const code = rawCode.replace(/\t/g, '    ').replace(/\r\n/g, '\n');
-      nodes.push(
-        <pre key={`c-${counter}`} className="bg-gray-900 text-green-200 p-3 rounded overflow-auto text-xs">
-          {lang && <div className="text-xs text-blue-300 mb-1">{lang.toUpperCase()}</div>}
-          <code className="whitespace-pre font-mono text-xs">{code}</code>
-        </pre>
-      );
-      lastIndex = pattern.lastIndex;
-      counter++;
-    }
-    const rest = text.slice(lastIndex);
-    if (rest) nodes.push(<div key={`r-${counter}`}>{rest}</div>);
-    return <>{nodes.map((n, i) => <div key={i} className="whitespace-pre-wrap text-sm text-gray-100">{n}</div>)}</>;
-  };
+
+  // Manual add question form (move above usage, JS only)
+  function ManualAddQuestionForm({ onAdd }) {
+    const [question_text, setQText] = React.useState('');
+    const [question_type, setQType] = React.useState('MCQ');
+    const [options, setOptions] = React.useState(['', '', '', '']);
+    const [correct, setCorrect] = React.useState('');
+    const [explanation, setExplanation] = React.useState('');
+
+    const handleOptionChange = (i, value) => {
+      const newOptions = [...options];
+      newOptions[i] = value;
+      setOptions(newOptions);
+    };
+    const handleAdd = () => {
+      if (!question_text.trim()) return;
+      const filteredOptions = options.filter(o => o.trim());
+      let correct_answer;
+      if (question_type === 'MCQ') {
+        // Accept answer as text, match to option value if possible
+        const ans = correct.trim();
+        // If answer matches an option, use the option value
+        const match = filteredOptions.find(opt => opt.trim().toLowerCase() === ans.toLowerCase());
+        correct_answer = match ? match : ans;
+      } else if (question_type === 'MSQ') {
+        // Accept comma separated answers, match to option values if possible
+        correct_answer = correct.split(',').map(s => {
+          const ans = s.trim();
+          const match = filteredOptions.find(opt => opt.trim().toLowerCase() === ans.toLowerCase());
+          return match ? match : ans;
+        });
+      } else {
+        correct_answer = correct;
+      }
+      onAdd({
+        question_text,
+        question_type,
+        options: filteredOptions,
+        correct_answer,
+        explanation
+      });
+      setQText('');
+      setQType('MCQ');
+      setOptions(['', '', '', '']);
+      setCorrect('');
+      setExplanation('');
+    };
+    return (
+      <div className="space-y-2">
+        <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Question text" value={question_text} onChange={e => setQText(e.target.value)} />
+        <select className="w-full border rounded px-2 py-1 text-sm" value={question_type} onChange={e => setQType(e.target.value)}>
+          <option value="MCQ">MCQ</option>
+          <option value="MSQ">MSQ</option>
+          <option value="NAT">NAT</option>
+        </select>
+        {(question_type === 'MCQ' || question_type === 'MSQ') && (
+          <div>
+            <label className="block text-xs font-medium mb-1">Options:</label>
+            {options.map((opt, i) => (
+              <div key={i} className="flex gap-2 mb-1">
+                <input className="border rounded px-2 py-1 text-sm flex-1" placeholder={`Option ${i + 1}`} value={opt} onChange={e => handleOptionChange(i, e.target.value)} />
+              </div>
+            ))}
+          </div>
+        )}
+        {(question_type === 'MCQ' || question_type === 'MSQ') && (
+          <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Correct option(s), comma separated for MSQ" value={correct} onChange={e => setCorrect(e.target.value)} />
+        )}
+        {question_type === 'NAT' && (
+          <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Correct answer (number)" value={correct} onChange={e => setCorrect(e.target.value)} />
+        )}
+        <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Explanation (optional)" value={explanation} onChange={e => setExplanation(e.target.value)} />
+        <Button size="sm" variant="default" onClick={handleAdd}>Add Question</Button>
+      </div>
+    );
+  }
+
+  // Editable parsed question card (JS only)
+  function EditableParsedQuestionCard({ question, index, onUpdate, onRemove }) {
+    const [editMode, setEditMode] = React.useState(false);
+    const [qText, setQText] = React.useState(question.question_text);
+    const [options, setOptions] = React.useState(Array.isArray(question.options) ? question.options : []);
+    const [correct, setCorrect] = React.useState(question.correct_answer);
+
+    const handleOptionChange = (i: number, value: string) => {
+      const newOptions = [...options];
+      newOptions[i] = value;
+      setOptions(newOptions);
+    };
+    const handleCorrectChange = (value: string | string[]) => {
+      setCorrect(value);
+    };
+    const handleSave = () => {
+      onUpdate({ ...question, question_text: qText, options, correct_answer: correct });
+      setEditMode(false);
+    };
+
+    return (
+      <div className="p-4 border rounded bg-card">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-semibold">Q{index + 1}</span>
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{question.question_type}</span>
+          <Button size="sm" variant="outline" onClick={() => setEditMode(v => !v)}>{editMode ? 'Cancel' : 'Edit'}</Button>
+          <Button size="sm" variant="destructive" onClick={onRemove}>Remove</Button>
+        </div>
+        {editMode ? (
+          <div className="space-y-2">
+            <textarea title='a' className="w-full border rounded p-2" value={qText} onChange={e => setQText(e.target.value)} />
+            {options && options.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium mb-1">Options:</label>
+                {options.map((opt: string, i: number) => (
+                  <div key={i} className="flex gap-2 mb-1">
+                    <input title='a' className="border rounded px-2 py-1 text-sm flex-1" value={opt} onChange={e => handleOptionChange(i, e.target.value)} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {options && options.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium mb-1">Correct Option(s):</label>
+                <input title='a' className="border rounded px-2 py-1 text-sm" value={Array.isArray(correct) ? correct.join(', ') : correct || ''} onChange={e => handleCorrectChange(e.target.value.split(',').map((s: string) => s.trim()))} />
+                <span className="text-xs text-muted-foreground ml-2">(comma separated for multiple)</span>
+              </div>
+            )}
+            <Button size="sm" variant="default" onClick={handleSave}>Save</Button>
+          </div>
+        ) : (
+          <div>
+            <p className="font-medium">{qText}</p>
+            {options && options.length > 0 && (
+              <ul className="list-disc ml-6">
+                {options.map((opt: string, i: number) => (
+                  <li key={i}>{opt}</li>
+                ))}
+              </ul>
+            )}
+            {correct && (
+              <div className="text-green-700 text-sm mt-1">Correct: {Array.isArray(correct) ? correct.join(', ') : correct}</div>
+            )}
+            {question.explanation && (
+              <div className="text-blue-700 text-xs mt-1">Explanation: {question.explanation}</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-5xl space-y-6">
       <Card>
-        <CardHeader><CardTitle><h1>AI Question Parser✨</h1></CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-        <p>powered by Google Gemini</p>
-          <textarea
-            className="w-full h-56 p-3 rounded border bg-background font-mono text-sm"
-            value={rawText}
-            onChange={e => setRawText(e.target.value)}
-            placeholder="Paste questions here"
-          />
-          <div className="flex gap-3">
-            <Button onClick={parse} disabled={loading}>{loading ? 'Parsing...' : 'Parse Questions'}</Button>
-            <input
-              type="text"
-              placeholder="Test Title (optional)"
-              className="flex-1 border rounded px-2 py-1 text-sm"
-              value={testTitle}
-              onChange={e => setTestTitle(e.target.value)}
-            />
-            <input
-              type="number"
-              min={1}
-              placeholder="Duration (mins)"
-              className="w-28 border rounded px-2 py-1 text-sm"
-              value={durationMinutes}
-              onChange={e => setDurationMinutes(e.target.value)}
-            />
+        <CardHeader>
+          <CardTitle>AI Question Parser & Test Creator</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Powered by Groq AI • Parse questions and create tests in one step
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Input Section */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Parsing Engine</label>
+              <select
+              title='a'
+                className="w-full border rounded px-3 py-2 text-sm"
+                value={parseApi}
+                onChange={e => setParseApi(e.target.value as 'groq' | 'gemini')}
+              >
+                <option value="groq">Groq (Fast, Default)</option>
+                <option value="gemini">Gemini (Google, Experimental)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Questions Input</label>
+              <textarea
+                className="w-full h-56 p-3 rounded border bg-background font-mono text-sm"
+                value={rawText}
+                onChange={e => setRawText(e.target.value)}
+                placeholder="Paste your questions here..."
+              />
+            </div>
+
+            {/* Test Configuration */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Test Title *</label>
+                <input
+                  type="text"
+                  placeholder="Enter test title"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={testTitle}
+                  onChange={e => setTestTitle(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Duration (minutes)</label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="60"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={durationMinutes}
+                  onChange={e => setDurationMinutes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Timing Configuration */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Start Time (optional)</label>
+                <input
+                  title='a'
+                  type="datetime-local"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">End Time (optional)</label>
+                <input 
+                  title='a'
+                  type="datetime-local"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              * If times not specified, test will start immediately and run for the specified duration
+            </p>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <Button 
+              onClick={parseQuestions} 
+              disabled={loading || !rawText.trim()}
+              className="w-full"
+              size="lg"
+            >
+              {loading ? 'Processing...' : '🧩 Parse Questions'}
+            </Button>
+            <Button 
+              onClick={createTest} 
+              disabled={loading || !testTitle.trim() || !result || !result.questions || result.questions.length === 0}
+              className="w-full"
+              size="lg"
+              variant="secondary"
+            >
+              {loading ? 'Processing...' : '🎯 Create Test'}
+            </Button>
           </div>
-          <div className="flex gap-3 items-center">
-            <label className="text-xs text-gray-400">Start</label>
-            <input
-              type="datetime-local"
-              className="border rounded px-2 py-1 text-sm"
-              aria-label="start-time"
-              value={startTime}
-              onChange={e => setStartTime(e.target.value)}
-            />
-            <label className="text-xs text-gray-400">End</label>
-            <input
-              type="datetime-local"
-              className="border rounded px-2 py-1 text-sm"
-              aria-label="end-time"
-              value={endTime}
-              onChange={e => setEndTime(e.target.value)}
-            />
-            <div className="text-xs text-gray-400">(optional — if blank, duration is used)</div>
-            <Button variant="secondary" onClick={insertQuestions} disabled={!result?.questions?.length}>Create Test & Insert</Button>
           </div>
-          {error && <div className="text-red-600 text-sm">{error}</div>}
-          {insertStatus && <div className="text-sm">{insertStatus}</div>}
+
+          {/* Status Messages */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          {/* Result Section */}
+          {result && result.questions && (
+            <>
+              <CardHeader>
+                <CardTitle>Parsed Questions ({result.questions?.length || 0})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {result.warnings?.length > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
+                    {result.warnings.map((w: string, i: number) => (
+                      <div key={i}>{w}</div>
+                    ))}
+                  </div>
+                )}
+                {result.questions.map((q, idx) => (
+                  <EditableParsedQuestionCard
+                    key={idx}
+                    question={q}
+                    index={idx}
+                    onUpdate={updated => {
+                      setResult(prev => {
+                        if (!prev) return prev;
+                        const newQuestions = [...prev.questions];
+                        newQuestions[idx] = updated;
+                        return { ...prev, questions: newQuestions };
+                      });
+                    }}
+                    onRemove={() => {
+                      setResult(prev => {
+                        if (!prev) return prev;
+                        const newQuestions = prev.questions.filter((_, i) => i !== idx);
+                        return { ...prev, questions: newQuestions };
+                      });
+                    }}
+                  />
+                ))}
+          {/* Add Question Manually */}
+          {result && (
+            <div className="p-4 border rounded bg-muted/30 mt-6">
+              <h3 className="font-semibold mb-2">Add Question Manually</h3>
+              <ManualAddQuestionForm onAdd={q => {
+                setResult((prev: any) => {
+                  if (!prev) return prev;
+                  return { ...prev, questions: [...prev.questions, q] };
+                });
+              }} />
+            </div>
+          )}
+              </CardContent>
+            </>
+          )}
         </CardContent>
       </Card>
-      {result && (
-        <Card>
-          <CardHeader><CardTitle>Parsed Output ({result.questions?.length || 0})</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            {result.warnings?.length > 0 && (
-              <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-400 px-3 py-2 rounded text-xs whitespace-pre-line">
-                Warnings:\n{result.warnings.join('\n')}
-              </div>
-            )}
-            <div className="space-y-4">
-              {result.questions.map((q: any, idx: number) => (
-                <div key={idx} className="p-3 border rounded bg-white/5">
-                  <div className="mb-2">
-                    {renderQuestionMarkdown(q.question_text || q.question)}
-                  </div>
-                  <div className="mt-2 text-sm text-green-200"><strong>Answer:</strong> {Array.isArray(q.correct_answer) ? q.correct_answer.join(', ') : q.correct_answer}</div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

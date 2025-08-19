@@ -8,6 +8,7 @@ import { hasEnvVars } from "@/lib/utils";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -26,6 +27,7 @@ export default async function Home() {
           <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
             <div className="flex gap-5 items-center font-semibold">
               <Logo />
+              <ThemeSwitcher />
             </div>
           </div>
         </nav>

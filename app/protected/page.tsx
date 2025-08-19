@@ -6,7 +6,7 @@ import { Download, TrendingUp, Users, Target, BookOpen, BarChart3 } from 'lucide
 const links = [
   { href: "/protected/dash", label: "Dash" },
   { href: "/protected/admin", label: "Admin" },
-  { href: "/protected/debug", label: "Debug" },
+  { href: "/protected/admin/debug", label: "Debug" },
   { href: "/protected/admin/create", label: "Question Creation" },
   { href: "/protected/admin/ai-question-import", label: "AI Parser" },
 ];

@@ -576,7 +576,7 @@ export default function AIQuestionGenerator() {
             {/* Gemini Enhancement Results */}
             {qualityReport && (
               <Card className="p-4">
-                <div className="flex items-center gap-2 mb-3">
+                <div className="bg-card border-border  items-center gap-2 mb-3">
                   <Target className="h-5 w-5 text-orange-600" />
                   <h3 className="font-semibold">Quality Analysis</h3>
                 </div>
@@ -624,11 +624,11 @@ export default function AIQuestionGenerator() {
                 <div className="space-y-3">
                   <div>
                     <p className="text-sm font-medium text-gray-600">Original:</p>
-                    <p className="text-sm bg-gray-50 p-2 rounded">{enhancement.original_question}</p>
+                    <p className="text-sm bg-card p-2 rounded">{enhancement.original_question}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-green-600">Enhanced:</p>
-                    <p className="text-sm bg-green-50 p-2 rounded">{enhancement.improved_question}</p>
+                    <p className="text-sm bg-card p-2 rounded">{enhancement.improved_question}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-blue-600">Improvements Made:</p>
@@ -640,7 +640,7 @@ export default function AIQuestionGenerator() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-purple-600">Enhanced Explanation:</p>
-                    <p className="text-sm bg-purple-50 p-2 rounded">{enhancement.explanation_enhanced}</p>
+                    <p className="text-sm bg-card p-2 rounded">{enhancement.explanation_enhanced}</p>
                   </div>
                 </div>
               </Card>

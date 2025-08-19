@@ -58,8 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!attempts || attempts.length === 0) {
-      const csvContent = 'Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Completed At\n';
-      
+      const csvContent = 'Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Completed At,Subject Scores\n';
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv',
