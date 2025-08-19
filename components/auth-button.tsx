@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "./logout-button";
 import { ThemeSwitcher } from "./theme-switcher";
 import { stripDomain } from '@/lib/utils';
-import { ThemeSwitcher } from "./theme-switcher";
 
 export async function AuthButton() {
   const supabase = await createClient();
@@ -23,11 +22,7 @@ export async function AuthButton() {
           <ThemeSwitcher />
         </div>
       </div>
-<<<<<<< HEAD
-      </div>
-=======
     </div>
->>>>>>> 3bd33b875b9c08690c073615a31bd9ecbc469d5d
   ) : (
     <div className="flex gap-2">
       <Button asChild size="sm" variant={"outline"}>
