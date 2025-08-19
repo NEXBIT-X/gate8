@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     siteName: "G8",
     images: [
       {
-        url: "https://g8-lemon.vercel.app/twitter-image.png", // must be absolute URL
+        url: "https://postimg.cc/p5P3cgp8", // must be absolute URL
         width: 1200,
         height: 630,
         alt: "",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "G8",
     description: "Gate Exam Mock Test Platform",
-    images: ["https://g8-lemon.vercel.app/twitter-image.png"],
+    images: ["https://postimg.cc/p5P3cgp8"],
   },
 };
 
