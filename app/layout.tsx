@@ -11,6 +11,28 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "G8",
   description: "Gate Exam Mock Test Platform",
+  openGraph: {
+    title: "My Website",
+    description: "This is my Next.js website",
+    url: "https://mywebsite.com",
+    siteName: "My Website",
+    images: [
+      {
+        url: "https://mywebsite.com/opengraph-image.png", // must be absolute URL
+        width: 1200,
+        height: 630,
+        alt: "",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "My Website",
+    description: "This is my Next.js website",
+    images: ["https://mywebsite.com/twitter-image.png"],
+  },
 };
 
 const inter = Inter({
