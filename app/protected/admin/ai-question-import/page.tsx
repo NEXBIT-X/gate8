@@ -15,8 +15,7 @@ export default function AIQuestionImportPage() {
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  // const [insertStatus, setInsertStatus] = useState<string | null>(null);
-  const [insertStatus, setInsertStatus] = useState<string | null>(null); // Used for status messages
+  const [insertStatus, setInsertStatus] = useState<string | null>(null);
 
   // Split: Parse and Create Test
   // Multi-call parse: split and parse each question individually
@@ -55,6 +54,7 @@ export default function AIQuestionImportPage() {
           continue;
         }
         if (parseData.questions && Array.isArray(parseData.questions)) {
+          // For each question, if MCQ/MSQ/NAT and correct_answer is label/index, convert to actual answer text/value
           const fixedQuestions = parseData.questions.map(q => {
             // MCQ and MSQ: map label/index to option text
             if ((q.question_type === 'MCQ' || q.question_type === 'MSQ') && Array.isArray(q.options) && q.options.length > 0 && q.correct_answer) {
@@ -111,7 +111,7 @@ export default function AIQuestionImportPage() {
       setResult({ questions: allQuestions, warnings });
       setInsertStatus('Parsed. Review and edit questions below.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(e.message);
       setInsertStatus(null);
     } finally {
       setLoading(false);
@@ -196,8 +196,35 @@ export default function AIQuestionImportPage() {
       setLoading(false);
     }
   };
+  // Helper function to render questions with code formatting
+  const renderQuestionMarkdown = (text: string) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return (
+      <div className="space-y-2">
+        {lines.map((line: string, i: number) => {
+          if (line.includes('[CODE]') && line.includes('[/CODE]')) {
+            const codeMatch = line.match(/\[CODE\](.*?)\[\/CODE\]/);
+            if (codeMatch) {
+              return (
+                <div key={i} className="code bg-gray-800 p-2 rounded text-green-400 font-mono text-sm">
+                  {codeMatch[1]}
+                </div>
+              );
+            }
+          }
+          return line.trim() ? (
+            <div key={i}>{line}</div>
+          ) : (
+            <div key={i} className="h-2"></div>
+          );
+        })}
+      </div>
+    );
+  };
 
 
+  // Manual add question form (move above usage, JS only)
   function ManualAddQuestionForm({ onAdd }) {
     const [question_text, setQText] = React.useState('');
     const [question_type, setQType] = React.useState('MCQ');
@@ -215,17 +242,18 @@ export default function AIQuestionImportPage() {
       const filteredOptions = options.filter(o => o.trim());
       let correct_answer;
       if (question_type === 'MCQ') {
+        // Accept answer as text, match to option value if possible
         const ans = correct.trim();
+        // If answer matches an option, use the option value
         const match = filteredOptions.find(opt => opt.trim().toLowerCase() === ans.toLowerCase());
         correct_answer = match ? match : ans;
       } else if (question_type === 'MSQ') {
+        // Accept comma separated answers, match to option values if possible
         correct_answer = correct.split(',').map(s => {
           const ans = s.trim();
           const match = filteredOptions.find(opt => opt.trim().toLowerCase() === ans.toLowerCase());
           return match ? match : ans;
         });
-      } else if (question_type === 'NAT') {
-        correct_answer = !isNaN(Number(correct.trim())) ? Number(correct.trim()) : '';
       } else {
         correct_answer = correct;
       }
@@ -272,6 +300,77 @@ export default function AIQuestionImportPage() {
     );
   }
 
+  // Editable parsed question card (JS only)
+  function EditableParsedQuestionCard({ question, index, onUpdate, onRemove }) {
+    const [editMode, setEditMode] = React.useState(false);
+    const [qText, setQText] = React.useState(question.question_text);
+    const [options, setOptions] = React.useState(Array.isArray(question.options) ? question.options : []);
+    const [correct, setCorrect] = React.useState(question.correct_answer);
+
+    const handleOptionChange = (i: number, value: string) => {
+      const newOptions = [...options];
+      newOptions[i] = value;
+      setOptions(newOptions);
+    };
+    const handleCorrectChange = (value: string | string[]) => {
+      setCorrect(value);
+    };
+    const handleSave = () => {
+      onUpdate({ ...question, question_text: qText, options, correct_answer: correct });
+      setEditMode(false);
+    };
+
+    return (
+      <div className="p-4 border rounded bg-card">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-semibold">Q{index + 1}</span>
+          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{question.question_type}</span>
+          <Button size="sm" variant="outline" onClick={() => setEditMode(v => !v)}>{editMode ? 'Cancel' : 'Edit'}</Button>
+          <Button size="sm" variant="destructive" onClick={onRemove}>Remove</Button>
+        </div>
+        {editMode ? (
+          <div className="space-y-2">
+            <textarea title='a' className="w-full border rounded p-2" value={qText} onChange={e => setQText(e.target.value)} />
+            {options && options.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium mb-1">Options:</label>
+                {options.map((opt: string, i: number) => (
+                  <div key={i} className="flex gap-2 mb-1">
+                    <input title='a' className="border rounded px-2 py-1 text-sm flex-1" value={opt} onChange={e => handleOptionChange(i, e.target.value)} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {options && options.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium mb-1">Correct Option(s):</label>
+                <input title='a' className="border rounded px-2 py-1 text-sm" value={Array.isArray(correct) ? correct.join(', ') : correct || ''} onChange={e => handleCorrectChange(e.target.value.split(',').map((s: string) => s.trim()))} />
+                <span className="text-xs text-muted-foreground ml-2">(comma separated for multiple)</span>
+              </div>
+            )}
+            <Button size="sm" variant="default" onClick={handleSave}>Save</Button>
+          </div>
+        ) : (
+          <div>
+            <p className="font-medium">{qText}</p>
+            {options && options.length > 0 && (
+              <ul className="list-disc ml-6">
+                {options.map((opt: string, i: number) => (
+                  <li key={i}>{opt}</li>
+                ))}
+              </ul>
+            )}
+            {correct && (
+              <div className="text-green-700 text-sm mt-1">Correct: {Array.isArray(correct) ? correct.join(', ') : correct}</div>
+            )}
+            {question.explanation && (
+              <div className="text-blue-700 text-xs mt-1">Explanation: {question.explanation}</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-5xl space-y-6">
@@ -396,35 +495,47 @@ export default function AIQuestionImportPage() {
                 <CardTitle>Parsed Questions ({result.questions?.length || 0})</CardTitle>
               </CardHeader>
               <CardContent>
-                {result.questions.map((q, idx) => (
-                  <div key={idx} className="mb-6">
-                    <div className="mb-2 font-semibold">Q{idx + 1} ({q.question_type})</div>
-                    <div>{q.question_text}</div>
-                    {q.options && q.options.length > 0 && (
-                      <ul className="list-disc ml-6 mt-2">
-                        {q.options.map((opt, i) => (
-                          <li key={i}>{opt}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {q.correct_answer !== undefined && q.correct_answer !== '' && (
-                      <div className="text-green-700 text-sm mt-1">Correct: {Array.isArray(q.correct_answer) ? q.correct_answer.join(', ') : q.correct_answer}</div>
-                    )}
-                    {q.explanation && (
-                      <div className="text-blue-700 text-xs mt-1">Explanation: {q.explanation}</div>
-                    )}
+                {result.warnings?.length > 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
+                    {result.warnings.map((w: string, i: number) => (
+                      <div key={i}>{w}</div>
+                    ))}
                   </div>
+                )}
+                {result.questions.map((q, idx) => (
+                  <EditableParsedQuestionCard
+                    key={idx}
+                    question={q}
+                    index={idx}
+                    onUpdate={updated => {
+                      setResult(prev => {
+                        if (!prev) return prev;
+                        const newQuestions = [...prev.questions];
+                        newQuestions[idx] = updated;
+                        return { ...prev, questions: newQuestions };
+                      });
+                    }}
+                    onRemove={() => {
+                      setResult(prev => {
+                        if (!prev) return prev;
+                        const newQuestions = prev.questions.filter((_, i) => i !== idx);
+                        return { ...prev, questions: newQuestions };
+                      });
+                    }}
+                  />
                 ))}
-                {/* Add Question Manually */}
-                <div className="p-4 border rounded bg-muted/30 mt-6">
-                  <h3 className="font-semibold mb-2">Add Question Manually</h3>
-                  <ManualAddQuestionForm onAdd={q => {
-                    setResult((prev) => {
-                      if (!prev) return prev;
-                      return { ...prev, questions: [...prev.questions, q] };
-                    });
-                  }} />
-                </div>
+          {/* Add Question Manually */}
+          {result && (
+            <div className="p-4 border rounded bg-muted/30 mt-6">
+              <h3 className="font-semibold mb-2">Add Question Manually</h3>
+              <ManualAddQuestionForm onAdd={q => {
+                setResult((prev: any) => {
+                  if (!prev) return prev;
+                  return { ...prev, questions: [...prev.questions, q] };
+                });
+              }} />
+            </div>
+          )}
               </CardContent>
             </>
           )}
