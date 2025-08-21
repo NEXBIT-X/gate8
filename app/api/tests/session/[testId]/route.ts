@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { type ShuffleConfig, shuffleQuestionsForUser, generateShuffleConfig } from '@/lib/utils/shuffle';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
@@ -53,7 +54,7 @@ export async function GET(
       }, { status: 404 });
     }
 
-    // Get test details
+  // Get test details
     const { data: test, error: testError } = await serviceSupabase
       .from('tests')
       .select('*')
@@ -65,7 +66,7 @@ export async function GET(
       return NextResponse.json({ error: 'Test not found' }, { status: 404 });
     }
 
-    // Get questions for this test
+  // Get questions for this test
     const { data: questions, error: questionsError } = await serviceSupabase
       .from('questions')
       .select('*')
@@ -99,14 +100,68 @@ export async function GET(
       created_at: q.created_at
     }));
 
-    console.log('Successfully loaded test session with', transformedQuestions.length, 'questions');
+    // Apply per-student deterministic shuffling (same as on start)
+    let shuffleConfig: ShuffleConfig | null = existingAttempt?.answers?._shuffle_config || null;
+
+    // Fallback: if missing config (older attempts), deterministically compute and persist
+    if (!shuffleConfig) {
+      try {
+        const shuffled = shuffleQuestionsForUser(transformedQuestions, user.id, testId);
+        shuffleConfig = generateShuffleConfig(shuffled);
+        // Persist back to attempt to keep it stable across sessions
+        const updatedAnswers = { ...(existingAttempt.answers || {}), _shuffle_config: shuffleConfig };
+        await serviceSupabase
+          .from('user_test_attempts')
+          .update({ answers: updatedAnswers })
+          .eq('id', existingAttempt.id);
+      } catch (e) {
+        console.warn('Failed to generate/persist shuffle config fallback:', e);
+      }
+    }
+
+    let questionsForClient = transformedQuestions;
+
+    if (shuffleConfig) {
+      // Reorder questions according to stored shuffle order and apply option permutations
+      const byId = new Map<number, typeof transformedQuestions[number]>();
+      transformedQuestions.forEach(q => byId.set(q.id, q));
+
+      const applyOptionShuffle = (opts: string[] | null, map: Record<string, string> | undefined): string[] | null => {
+        if (!opts || opts.length === 0 || !map || Object.keys(map).length === 0) return opts;
+        const result = Array(opts.length).fill('') as string[];
+        for (let i = 0; i < opts.length; i++) {
+          const origLabel = String.fromCharCode(65 + i); // 'A', 'B', ...
+          const newLabel = map[origLabel];
+          const newIndex = newLabel ? newLabel.charCodeAt(0) - 65 : i;
+          result[newIndex] = opts[i];
+        }
+        return result;
+      };
+
+      const orderedIds = shuffleConfig.question_order && shuffleConfig.question_order.length
+        ? shuffleConfig.question_order
+        : transformedQuestions.map(q => q.id);
+
+      questionsForClient = orderedIds
+        .map((qid) => byId.get(qid))
+        .filter((q): q is typeof transformedQuestions[number] => !!q)
+        .map((q) => {
+          const optionMap = shuffleConfig!.option_shuffles[q.id];
+          return {
+            ...q,
+            options: applyOptionShuffle(q.options, optionMap)
+          };
+        });
+    }
+
+    console.log('Successfully loaded test session with', questionsForClient.length, 'questions (shuffled per student)');
 
     return NextResponse.json({ 
       success: true,
       attempt: existingAttempt,
       test: {
         ...test,
-        questions: transformedQuestions
+        questions: questionsForClient
       }
     });
 
