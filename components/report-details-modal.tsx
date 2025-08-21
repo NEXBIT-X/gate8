@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { stripDomain } from '@/lib/utils';
 
 interface ReportDetailsModalProps {
   isOpen: boolean;
@@ -10,7 +11,7 @@ interface ReportDetailsModalProps {
 const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({ isOpen, onClose, reports }) => {
   if (!isOpen || !reports || reports.length === 0) return null;
 
-  const studentName = reports[0].full_name || reports[0].email;
+  const studentName = reports[0].full_name || stripDomain(reports[0].email);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

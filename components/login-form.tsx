@@ -22,6 +22,7 @@ export function LoginForm({
 }: React.ComponentPropsWithoutRef<"div">) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [regNo, setRegNo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -49,13 +50,23 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-        // Remove redirectTo - it's not needed for email/password auth
-      });
-      
-      if (error) throw error;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw error;
+
+
+  // Verify reg no (stored in user metadata as display_name)
+  const user = data?.user;
+  const storedReg = (user?.user_metadata as any)?.display_name;
+  const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
+  if (storedReg && normalize(storedReg) !== normalize(regNo)) {
+    // Reg no mismatch: sign the user out and show an error
+    await supabase.auth.signOut();
+    throw new Error("Registration number does not match our records");
+  }
       
       // Don't use router.push here - let the auth state listener handle it
     } catch (error: unknown) {
@@ -78,7 +89,7 @@ export function LoginForm({
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -88,6 +99,17 @@ export function LoginForm({
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="regno">Reg No</Label>
+                  <Input
+                    id="regno"
+                    type="text"
+                    placeholder="Enter your registration number"
+                    required
+                    value={regNo}
+                    onChange={(e) => setRegNo(e.target.value)}
+                  />
+                </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>

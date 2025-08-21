@@ -77,7 +77,8 @@ export async function GET(request: NextRequest) {
         userMap.set(user.id, {
           id: user.id,
           email: user.email,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name
+          // Prefer display_name (reg no) first
+          full_name: user.user_metadata?.display_name || user.user_metadata?.full_name || user.user_metadata?.name
         });
       });
     }
@@ -105,8 +106,8 @@ export async function GET(request: NextRequest) {
 
     attempts.forEach(attempt => {
       const user = userMap.get(attempt.user_id) || { 
-        email: 'Unknown', 
-        full_name: null 
+        email: '', 
+        full_name: '' 
       };
       
       const attemptResponses = responses?.filter(r => r.attempt_id === attempt.id) || [];
@@ -151,8 +152,8 @@ export async function GET(request: NextRequest) {
       };
 
       const row = [
-        escapeCsvValue(user.full_name || stripDomain(user.email) || 'Unknown'),
-        escapeCsvValue(user.email || 'Unknown'),
+        escapeCsvValue(user.full_name || stripDomain(user.email) || ''),
+        escapeCsvValue(user.email || ''),
         escapeCsvValue(attempt.tests?.title || 'Unknown Test'),
         totalScore,
         totalPossibleMarks,

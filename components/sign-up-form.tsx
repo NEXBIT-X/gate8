@@ -23,6 +23,7 @@ export function SignUpForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const [regNo, setRegNo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -45,6 +46,10 @@ export function SignUpForm({
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/protected/dash`,
+          data: {
+            // store reg no as display_name so we can validate on login and show it in UI
+            display_name: regNo,
+          },
         },
       });
       if (error) throw error;
@@ -75,6 +80,17 @@ export function SignUpForm({
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="regno">Reg No</Label>
+                <Input
+                  id="regno"
+                  type="text"
+                  placeholder="Enter your registration number"
+                  required
+                  value={regNo}
+                  onChange={(e) => setRegNo(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
