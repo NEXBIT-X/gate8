@@ -47,9 +47,9 @@ const Section = ({ title, items, empty, onStartTest, startingTestId, onViewResul
     onContinueTest?: (testId: string, attemptId: string) => void;
 }) => (
     <div className="rounded border p-4 ">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <hr />
-        {items.length === 0 && <p className="text-sm">{empty}</p>}
+        <h2 className="text-lg font-semibold mb-3">{title}</h2>
+        <hr className="mb-4" />
+        {items.length === 0 && <p className="text-sm mb-4">{empty}</p>}
         <ul className="space-y-2">
             {items.map(t => (
                 <li key={t.id} className="w-full bg-card border-border border rounded p-3 flex flex-col gap-1">
@@ -430,7 +430,7 @@ const Dash = () => {
                             </button>
                         </div>
                         <div className="gap-6 grid  ">
-                            <Section  title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTestClick} startingTestId={startingTestId} />
+                            <Section title="Available Tests" items={available} empty="No tests currently available." onStartTest={handleStartTestClick} startingTestId={startingTestId} />
                             <Section title="Attempted Tests" items={attempted} empty="You haven't attempted any tests yet." onViewResult={handleViewResult} onContinueTest={handleContinueTest} />
                             <Section title="Upcoming Tests" items={upcoming} empty="No upcoming tests scheduled." />
                             <Section title="Ended Tests" items={ended} empty="No tests have ended yet." />
