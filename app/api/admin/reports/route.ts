@@ -3,17 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
-  console.log('Reports API called');
   try {
     const supabase = await createClient();
-    
+
     // Check authentication and admin status
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    console.log('User check:', { user: user?.email, error: userError?.message });
-    
+
     if (userError || !user) {
-      console.log('Authentication failed');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -25,20 +21,14 @@ export async function GET(request: NextRequest) {
       'b.lakshminarayanan2007@gmail.com'
     ];
 
-    console.log('Admin check:', { userEmail: user.email, isAdmin: adminEmails.includes(user.email || '') });
-
     if (!adminEmails.includes(user.email || '')) {
-      console.log('Admin access denied');
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
     const testId = searchParams.get('testId');
 
-    console.log('Query params:', { testId });
-
-    const serviceSupabase = createServiceRoleClient();
-    console.log('Service client created');
+  const serviceSupabase = createServiceRoleClient();
 
     // Build the query for test attempts with user and test details
     let query = serviceSupabase
@@ -61,16 +51,12 @@ export async function GET(request: NextRequest) {
 
     const { data: attempts, error: attemptsError } = await query;
 
-    console.log('Attempts query result:', { 
-      attemptsCount: attempts?.length, 
-      error: attemptsError?.message,
-      firstAttempt: attempts?.[0] 
-    });
-
     if (attemptsError) {
       console.error('Error fetching attempts:', attemptsError);
       return NextResponse.json({ error: 'Failed to fetch attempts' }, { status: 500 });
     }
+
+  // attempts fetched
 
     if (!attempts || attempts.length === 0) {
       return NextResponse.json({
@@ -85,25 +71,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get user details for the attempts
+    // Get user details for the attempts — only fetch needed users to reduce load
     const userIds = [...new Set(attempts.map(a => a.user_id))];
-    const { data: users, error: usersError } = await serviceSupabase.auth.admin.listUsers();
-    
-    console.log('Users query result:', { 
-      usersCount: users?.users?.length, 
-      error: usersError?.message 
-    });
+    let userMap = new Map();
+    if (userIds.length > 0) {
+      const { data: users, error: usersError } = await serviceSupabase
+        .from('auth.users')
+        .select('id,email,user_metadata')
+        .in('id', userIds);
 
-    // Create a map of user data
-    const userMap = new Map();
-    if (users?.users) {
-      users.users.forEach(user => {
-        userMap.set(user.id, {
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name
+      if (!users || usersError) {
+        // Fall back to empty map but continue
+        userMap = new Map();
+      } else {
+        users.forEach((u: any) => {
+          userMap.set(u.id, {
+            id: u.id,
+            email: u.email,
+            full_name: u.user_metadata?.full_name || u.user_metadata?.name
+          });
         });
-      });
+      }
     }
 
     // Get all responses for these attempts to calculate detailed stats
@@ -118,12 +106,6 @@ export async function GET(request: NextRequest) {
         )
       `)
       .in('attempt_id', attemptIds);
-
-    console.log('Responses query result:', { 
-      responsesCount: responses?.length, 
-      error: responsesError?.message,
-      firstResponse: responses?.[0] 
-    });
 
     if (responsesError) {
       console.error('Error fetching responses:', responsesError);
@@ -168,6 +150,23 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      // Build per-question time mapping: { questionId: seconds }
+      const perQuestionTimeSeconds: Record<string, number> = {};
+      attemptResponses.forEach(r => {
+        perQuestionTimeSeconds[String(r.question_id)] = r.time_spent_seconds || 0;
+      });
+
+      // Prepare detailed responses for this attempt
+      const detailedResponses = attemptResponses.map(r => ({
+        id: r.id,
+        question_id: r.question_id,
+        question_type: r.question_type || (r.questions ? r.questions.question_type : null),
+        user_answer: r.user_answer,
+        is_correct: r.is_correct,
+        marks_obtained: r.marks_obtained,
+        time_spent_seconds: r.time_spent_seconds || 0
+      }));
+
       return {
         id: attempt.user_id,
         email: user.email || 'Unknown',
@@ -184,6 +183,13 @@ export async function GET(request: NextRequest) {
         incorrect_answers: incorrectAnswers,
         unanswered_questions: unansweredQuestions,
         time_taken_minutes: timeTakenMinutes,
+        per_question_time_seconds: perQuestionTimeSeconds,
+        // Attempt-level marks
+        total_positive_marks: attempt.total_positive_marks || 0,
+        total_negative_marks: attempt.total_negative_marks || 0,
+        final_score: attempt.final_score || 0,
+        // Detailed responses
+        responses: detailedResponses,
         completed_at: attempt.submitted_at || attempt.started_at,
         subject_scores: subjectScores
       };

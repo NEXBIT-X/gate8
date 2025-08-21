@@ -62,14 +62,17 @@ const CreateTestPage = () => {
     if (new Date(testData.start_time) >= new Date(testData.end_time)) {
       return 'End time must be after start time';
     }
-    if (questions.length === 0) return 'At least one question is required';
+  // Allow creating a test with zero questions (empty test). Individual questions
+  // are still validated when present.
     
-    // Validate questions
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
+    // Validate only questions that actually have text — ignore empty placeholder questions.
+    const effectiveQuestions = questions.filter(q => q.question_text && q.question_text.trim().length > 0);
+
+    for (let i = 0; i < effectiveQuestions.length; i++) {
+      const q = effectiveQuestions[i];
       if (!q.question_text.trim()) return `Question ${i + 1}: Question text is required`;
       if (q.marks <= 0) return `Question ${i + 1}: Marks must be greater than 0`;
-      
+
       if (q.question_type === 'MCQ' || q.question_type === 'MSQ') {
         if (!q.options || q.options.some(opt => !opt.trim())) {
           return `Question ${i + 1}: All options must be filled`;
@@ -78,7 +81,7 @@ const CreateTestPage = () => {
           return `Question ${i + 1}: Correct answer is required`;
         }
       }
-      
+
       if (q.question_type === 'NAT') {
         if (!q.correct_answer || q.correct_answer === '') {
           return `Question ${i + 1}: Correct answer is required`;
@@ -172,14 +175,18 @@ const CreateTestPage = () => {
     setError(null);
 
     try {
-      // Create test
+      // Create test (ignore empty questions when calculating totals)
+      const effectiveQuestions = questions.filter(q => q.question_text && q.question_text.trim().length > 0);
+      const totalQuestions = effectiveQuestions.length;
+      const maxMarks = effectiveQuestions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0);
+
       const testResponse = await fetch('/api/admin/tests/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...testData,
-          total_questions: questions.length,
-          max_marks: questions.reduce((sum, q) => sum + q.marks, 0)
+          total_questions: totalQuestions,
+          max_marks: maxMarks
         })
       });
 
@@ -190,19 +197,28 @@ const CreateTestPage = () => {
 
       const { test } = await testResponse.json();
 
-      // Create questions
-      const questionsResponse = await fetch('/api/admin/questions/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          testId: test.id,
-          questions: questions.map((q, index) => ({
-            ...q,
-            question_number: index + 1,
-            test_id: test.id
-          }))
-        })
-      });
+      // Create questions (only send questions that have non-empty question_text)
+      const effectiveQuestionsForInsert = questions
+        .filter(q => q.question_text && q.question_text.trim().length > 0)
+        .map((q, index) => ({
+          ...q,
+          question_number: index + 1,
+          test_id: test.id
+        }));
+
+      let questionsResponse = { ok: true } as Response & any;
+      if (effectiveQuestionsForInsert.length > 0) {
+        questionsResponse = await fetch('/api/admin/questions/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ testId: test.id, questions: effectiveQuestionsForInsert })
+        });
+
+        if (!questionsResponse.ok) {
+          const errorData = await questionsResponse.json();
+          throw new Error(errorData.error || 'Failed to create questions');
+        }
+      }
 
       if (!questionsResponse.ok) {
         const errorData = await questionsResponse.json();

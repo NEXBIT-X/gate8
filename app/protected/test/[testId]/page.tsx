@@ -35,9 +35,9 @@ const TestInterface = () => {
     // We use a ref to hold the setter so the onExitAttempt callback (passed into the hook)
     // can call it even though the setter is returned by the hook after invocation.
     const setExitAttemptsRef = React.useRef<(count: number) => void>(() => {});
-    const { state: fullscreenState, enterFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
-        3, // Max 3 exit attempts
-        (attempts, maxAttempts) => {
+    const { state: fullscreenState, enterFullscreen, exitFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
+        2, // Max 2 exit attempts (auto-submit after 2 exits)
+            (attempts, maxAttempts) => {
                 console.log(`Fullscreen exit attempt ${attempts}/${maxAttempts}`);
                 setShowExitWarning(true);
                 setTimeout(() => setShowExitWarning(false), 3000);
@@ -64,14 +64,18 @@ const TestInterface = () => {
                     }
                 })();
             },
-        () => {
-            console.log('Test blocked due to too many fullscreen exits');
-            setShowBlockedWarning(true);
-            // Auto-submit test when blocked
-            setTimeout(() => {
-                handleCompleteTest();
-            }, 5000);
-        }
+                () => {
+                        console.log('Test blocked due to too many fullscreen exits');
+                        setShowBlockedWarning(true);
+                        // Auto-submit test immediately when blocked
+                        (async () => {
+                            try {
+                                await handleCompleteTest();
+                            } catch (e) {
+                                console.error('Auto-submit failed after fullscreen exits:', e);
+                            }
+                        })();
+                }
     );
 
     // Wire the returned setter into the ref so the onExitAttempt callback can call it
@@ -215,8 +219,13 @@ const TestInterface = () => {
                 throw new Error(errorData.error || 'Failed to complete test');
             }
 
-            // Redirect to dashboard instead of test results
-            router.push('/protected/dash');
+                    // Exit fullscreen and redirect to dashboard instead of test results
+                    try {
+                        await exitFullscreen();
+                    } catch (e) {
+                        console.warn('Failed to exit fullscreen after submit:', e);
+                    }
+                    router.push('/protected/dash');
         } catch (error) {
             console.error('Error completing test:', error);
             setError(error instanceof Error ? error.message : 'Failed to complete test');

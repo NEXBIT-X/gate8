@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { stripDomain } from '@/lib/utils';
+import ReportDetailsModal from '@/components/report-details-modal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +50,19 @@ interface StudentReport {
     attempted: number;
     correct: number;
   }>;
+  per_question_time_seconds?: Record<string, number>;
+  total_positive_marks?: number;
+  total_negative_marks?: number;
+  final_score?: number;
+  responses?: Array<{
+    id: string;
+    question_id: number;
+    question_type?: string | null;
+    user_answer?: any;
+    is_correct?: boolean;
+    marks_obtained?: number;
+    time_spent_seconds?: number;
+  }>;
 }
 
 interface AnalyticsData {
@@ -68,11 +82,16 @@ interface AnalyticsData {
 
 const ViewReportsPage = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [expandedAttempt, setExpandedAttempt] = useState<string | null>(null);
+  const [selectedReports, setSelectedReports] = useState<StudentReport[] | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTest, setSelectedTest] = useState<string>('all');
   const [tests, setTests] = useState<Array<{ id: string; title: string }>>([]);
   const [downloadingCSV, setDownloadingCSV] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Chart configuration with neutral colors
   const chartOptions = {
@@ -127,6 +146,37 @@ const ViewReportsPage = () => {
     },
   };
 
+  // Single data fetch effect (fetch tests list and analytics)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        const testsResponse = await fetch('/api/tests');
+        if (testsResponse.ok) {
+          const testsData = await testsResponse.json();
+          setTests(testsData.tests || []);
+        }
+
+        const analyticsResponse = await fetch(`/api/admin/reports${selectedTest !== 'all' ? `?testId=${selectedTest}` : ''}`);
+        if (!analyticsResponse.ok) {
+          const errorText = await analyticsResponse.text();
+          throw new Error(`HTTP ${analyticsResponse.status}: ${errorText}`);
+        }
+
+        const data = await analyticsResponse.json();
+        setAnalyticsData(data);
+        setPage(1);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load analytics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedTest]);
+
   // Prepare data for performance distribution chart
   const getPerformanceDistributionData = () => {
     if (!analyticsData?.reports.length) return null;
@@ -167,13 +217,12 @@ const ViewReportsPage = () => {
         acc[report.test_title] = {
           totalScore: 0,
           totalAttempts: 0,
-          averagePercentage: 0,
         };
       }
       acc[report.test_title].totalScore += report.percentage;
       acc[report.test_title].totalAttempts += 1;
       return acc;
-    }, {} as Record<string, { totalScore: number; totalAttempts: number; averagePercentage: number }>);
+    }, {} as Record<string, { totalScore: number; totalAttempts: number }>);
 
     const testNames = Object.keys(testPerformance);
     const averagePercentages = testNames.map(test => {
@@ -227,43 +276,12 @@ const ViewReportsPage = () => {
     };
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch available tests
-        const testsResponse = await fetch('/api/tests');
-        if (testsResponse.ok) {
-          const testsData = await testsResponse.json();
-          setTests(testsData.tests || []);
-        }
+  // Memoize chart data to avoid recomputation
+  const memoPerformanceData = React.useMemo(() => getPerformanceDistributionData(), [analyticsData]);
+  const memoTestWiseData = React.useMemo(() => getTestWisePerformanceData(), [analyticsData]);
+  const memoTimeData = React.useMemo(() => getTimeDistributionData(), [analyticsData]);
 
-        // Fetch analytics data
-        const analyticsResponse = await fetch(`/api/admin/reports${selectedTest !== 'all' ? `?testId=${selectedTest}` : ''}`);
-        
-        console.log('Analytics response status:', analyticsResponse.status);
-        console.log('Analytics response headers:', Object.fromEntries(analyticsResponse.headers.entries()));
-        
-        if (!analyticsResponse.ok) {
-          const errorText = await analyticsResponse.text();
-          console.error('Analytics response error:', errorText);
-          throw new Error(`HTTP ${analyticsResponse.status}: ${errorText}`);
-        }
-
-        const data = await analyticsResponse.json();
-        console.log('Analytics data received:', data);
-        setAnalyticsData(data);
-      } catch (error) {
-        console.error('Error fetching analytics:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load analytics');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [selectedTest]);
+  const pagedReports = analyticsData?.reports.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) || [];
 
   const handleDownloadCSV = async () => {
     try {
@@ -419,9 +437,9 @@ const ViewReportsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="h-64">
-                {getPerformanceDistributionData() && (
+                {memoPerformanceData && (
                   <Bar 
-                    data={getPerformanceDistributionData()!} 
+                    data={memoPerformanceData!} 
                     options={chartOptions}
                   />
                 )}
@@ -440,9 +458,9 @@ const ViewReportsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="h-64">
-                {getTimeDistributionData() && (
+                {memoTimeData && (
                   <Bar 
-                    data={getTimeDistributionData()!} 
+                    data={memoTimeData!} 
                     options={chartOptions}
                   />
                 )}
@@ -463,9 +481,9 @@ const ViewReportsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                {getTestWisePerformanceData() && (
+                {memoTestWiseData && (
                   <Bar 
-                    data={getTestWisePerformanceData()!} 
+                    data={memoTestWiseData!} 
                     options={chartOptions}
                   />
                 )}
@@ -532,11 +550,12 @@ const ViewReportsPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {analyticsData.reports.map((report) => (
-                    <tr key={report.attempt_id} className="border-b border-gray-800 ">
+                  {pagedReports.map((report) => (
+                    <React.Fragment key={report.attempt_id}>
+                      <tr className="border-b border-gray-800 ">
                       <td className="p-3">
                         <div>
-                          <div className=" font-medium">
+                          <div className=" font-medium cursor-pointer text-blue-400 hover:underline" onClick={() => { setSelectedReports(analyticsData.reports.filter(r => r.id === report.id)); setShowReportModal(true); }}>
                             {report.full_name || stripDomain(report.email)}
                           </div>
                           <div className="text-gray-400 text-xs">{stripDomain(report.email)}</div>
@@ -566,17 +585,26 @@ const ViewReportsPage = () => {
                       </td>
                       <td className="p-3 text-gray-300">{report.time_taken_minutes} min</td>
                       <td className="p-3">
-                        <Badge variant="outline">
-                          Completed
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={() => { setSelectedReports([report]); setShowReportModal(true); }}>
+                            View Details
+                          </Button>
+                          <Badge variant="outline">Completed</Badge>
+                        </div>
                       </td>
                     </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
           </CardContent>
         </Card>
+      <ReportDetailsModal
+        isOpen={showReportModal}
+        onClose={() => { setShowReportModal(false); setSelectedReports(null); }}
+        reports={selectedReports}
+      />
       </div>
     </div>
   );

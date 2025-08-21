@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!attempts || attempts.length === 0) {
-      const csvContent = 'Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Completed At,Subject Scores\n';
+      const csvContent = 'Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At\n';
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv',
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Process the data
-    const csvRows = ['Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Completed At,Subject Scores'];
+  const csvRows = ['Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At'];
 
     attempts.forEach(attempt => {
       const user = userMap.get(attempt.user_id) || { 
@@ -138,6 +138,9 @@ export async function GET(request: NextRequest) {
         .map(([subject, scores]) => `${subject}: ${scores.score}/${scores.total}`)
         .join('; ');
 
+      // Build per-question time string (questionId:seconds; ...)
+      const perQuestionTimeText = attemptResponses.map(r => `${r.question_id}:${r.time_spent_seconds || 0}`).join('; ');
+
       // Escape CSV values
       const escapeCsvValue = (value: any): string => {
         const str = String(value || '');
@@ -160,8 +163,8 @@ export async function GET(request: NextRequest) {
         incorrectAnswers,
         unansweredQuestions,
         timeTakenMinutes,
-        new Date(attempt.submitted_at || attempt.started_at).toLocaleString(),
-        escapeCsvValue(subjectScoresText)
+        escapeCsvValue(perQuestionTimeText),
+        new Date(attempt.submitted_at || attempt.started_at).toLocaleString()
       ].join(',');
 
       csvRows.push(row);

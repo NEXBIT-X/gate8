@@ -7,8 +7,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  experimental: {
-    turbo: {
+  // Turbopack configuration (moved from deprecated `experimental.turbo`)
+  config: {
+    turbopack: {
       rules: {
         '*.svg': {
           loaders: ['@svgr/webpack'],

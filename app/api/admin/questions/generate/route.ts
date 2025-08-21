@@ -12,8 +12,10 @@ export async function POST(request: NextRequest) {
       difficulty, 
       questionTypes, 
       testId, 
-      syllabus 
-    } = body as QuestionGenerationRequest & { testId?: string };
+      syllabus,
+      topics,
+      aiEngine
+  } = body as QuestionGenerationRequest & { testId?: string; aiEngine?: 'groq' | 'gemini' | 'openai'; topics?: string[] };
 
     // Validate required fields
     if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
@@ -69,8 +71,9 @@ export async function POST(request: NextRequest) {
       questionCount,
       difficulty,
       questionTypes,
-      syllabus
-    });
+  syllabus,
+  topics
+    }, aiEngine || 'groq');
 
     if (!generationResult.success) {
       return NextResponse.json(

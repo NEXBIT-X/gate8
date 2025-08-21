@@ -60,7 +60,8 @@ DATABASE SCHEMA:
   "has_code": "boolean (true if question contains code)",
   "programming_language": "string or null - Language if has_code is true",
   "question_html": "string or null - HTML version if needed",
-  "explanation_html": "string or null - HTML explanation if needed"
+  "explanation_html": "string or null - HTML explanation if needed",
+      // "question_number": "number or null - If input has explicit numbering like 'Question 3:' set this"
 }
 
 CRITICAL REQUIREMENTS:
@@ -73,6 +74,7 @@ CRITICAL REQUIREMENTS:
 7. Add appropriate tags based on subject matter
 8. Generate explanations when possible
 9. Assess difficulty level when determinable
+10. If the input includes explicit numbering like "Question 3:" or "3)", populate a top-level numeric field "question_number" with that value for that question. This helps preserve original ordering.
 
 RETURN ONLY VALID JSON ARRAY - NO MARKDOWN, NO EXPLANATIONS:
 
@@ -112,13 +114,14 @@ ${input}`;
       
       // Convert to our internal format and validate
       const converted = parsed.map((q, i) => ({
-        question_text: q.question || q.question_text || '',
-        question_type: q.question_type || 'MCQ',
+  question_text: q.question || q.question_text || '',
+  question_type: q.question_type || 'MCQ',
+  question_number: (q.question_number !== undefined && q.question_number !== null) ? Number(q.question_number) : undefined,
         options: q.options || undefined,
         correct_answer: q.correct_answer || '',
         marks: q.marks || 2,
         negative_marks: q.negative_marks ?? (q.question_type === 'NAT' ? 0 : 0.5),
-        explanation: q.explanation || undefined,
+  explanation: q.explanation || undefined,
         // Store additional fields for later DB insertion
         _dbFields: {
           tag: q.tag || null,
@@ -127,7 +130,7 @@ ${input}`;
           has_code: q.has_code || false,
           programming_language: q.programming_language || null,
           question_html: q.question_html || null,
-          explanation_html: q.explanation_html || null
+    explanation_html: q.explanation_html || null
         }
       }));
 
@@ -244,13 +247,14 @@ function validateAndClean(list: RawParsedQuestion[]): { cleaned: RawParsedQuesti
     }
     
     cleaned.push({
-      question_text: String(q.question_text).trim(),
+      // Preserve whitespace exactly as provided by the parser/AI — do not trim internal spacing
+      question_text: String(q.question_text),
       question_type: type,
       options: options?.map(o => String(o)),
       correct_answer: correct,
       marks: Number(q.marks) || 2,
       negative_marks: Number(q.negative_marks) ?? (type === 'NAT' ? 0 : 0.5),
-      explanation: q.explanation?.trim() || undefined,
+      explanation: q.explanation || undefined,
       _dbFields: q._dbFields || {}
     });
   });
@@ -262,10 +266,12 @@ function validateAndClean(list: RawParsedQuestion[]): { cleaned: RawParsedQuesti
  * Extracts JSON from potentially markdown-wrapped or commented text.
  */
 function extractJson(text: string): string {
-  text = text.trim();
+  // Intentionally do not trim the entire model output here — we want to preserve
+  // any leading/trailing whitespace inside code blocks or string values.
   
-  // Remove markdown code fences if present
-  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  // Remove outer markdown code fences if present but preserve ALL inner whitespace
+  // (avoid consuming trailing spaces/newlines inside code blocks).
+  const fenceMatch = text.match(/```(?:json)?\n?([\s\S]*?)```/);
   if (fenceMatch) {
     text = fenceMatch[1];
   }
@@ -278,7 +284,8 @@ function extractJson(text: string): string {
     text = text.substring(start, lastEnd + 1);
   }
   
-  return text.trim();
+  // Return as-is (without trimming inner JSON) to preserve spacing inside string values
+  return text;
 }
 
 /**
@@ -306,12 +313,13 @@ function fixCommonJsonErrors(jsonText: string): string {
  * Formats code snippets in text to use div with className="code" instead of markdown.
  */
 function formatCodeInText(text: string): string {
-  // Convert inline code (`code`) to simple text - no special formatting needed
+  // Convert inline code (`code`) to simple text - preserve inner spacing
   text = text.replace(/`([^`]+)`/g, '$1');
-  
+
   // Convert code blocks to indicate they should be rendered as div.code
+  // Preserve original code block whitespace exactly as provided
   text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    return `[CODE]${code.trim()}[/CODE]`;
+    return `[CODE]${code}[/CODE]`;
   });
   
   return text;

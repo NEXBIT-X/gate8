@@ -10,6 +10,7 @@ export interface QuestionGenerationRequest {
   difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
   questionTypes: ('MCQ' | 'MSQ' | 'NAT')[];
   syllabus?: string;
+  topics?: string[];
 }
 
 export interface GeneratedQuestion {
@@ -37,31 +38,75 @@ export interface QuestionGenerationResult {
 }
 
 const GATE_SUBJECTS = [
-  'Computer Science and Information Technology',
-  'Electronics and Communication Engineering',
-  'Electrical Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Chemical Engineering',
-  'Instrumentation Engineering',
-  'Aerospace Engineering',
-  'Agricultural Engineering',
-  'Architecture and Planning',
-  'Biomedical Engineering',
-  'Biotechnology',
-  'Chemistry',
-  'Ecology and Evolution',
-  'Geology and Geophysics',
-  'Mathematics',
-  'Metallurgical Engineering',
-  'Mining Engineering',
-  'Naval Architecture and Marine Engineering',
-  'Ocean Engineering',
-  'Petroleum Engineering',
-  'Physics',
-  'Production and Industrial Engineering',
-  'Textile Engineering and Fibre Science'
+  'Computer Science and Information Technology'
 ];
+
+// Detailed syllabus texts for subjects (used to pre-fill the 'syllabus' field in the UI)
+export const SUBJECT_SYLLABI: Record<string, string> = {
+  'Computer Science and Information Technology': `Section 1: Engineering Mathematics
+Discrete Mathematics: Propositional and first order logic. Sets, relations, functions, partial orders and
+lattices. Monoids, Groups. Graphs: connectivity, matching, colouring. Combinatorics: counting, recurrence
+relations, generating functions.
+Linear Algebra: Matrices, determinants, system of linear equations, eigenvalues and eigenvectors, LU
+decomposition.
+Calculus: Limits, continuity and differentiability, Maxima and minima, Mean value theorem, Integration.
+Probability and Statistics: Random variables, Uniform, normal, exponential, Poisson and binomial
+distributions. Mean, median, mode and standard deviation. Conditional probability and Bayes theorem.
+Section 2: Digital Logic
+Boolean algebra. Combinational and sequential circuits. Minimization. Number representations and
+computer arithmetic (fixed and floating point).
+Section 3: Computer Organization and Architecture
+Machine instructions and addressing modes. ALU, data‐path and control unit. Instruction pipelining,
+pipeline hazards. Memory hierarchy: cache, main memory and secondary storage; I/O interface (interrupt
+and DMA mode).
+Section 4: Programming and Data Structures
+Programming in C. Recursion. Arrays, stacks, queues, linked lists, trees, binary search trees, binary heaps,
+graphs.
+Section 5: Algorithms
+Searching, sorting, hashing. Asymptotic worst case time and space complexity. Algorithm design
+techniques: greedy, dynamic programming and divide‐and‐conquer. Graph traversals, minimum spanning
+trees, shortest paths.
+Section 6: Theory of Computation
+Regular expressions and finite automata. Context-free grammars and push-down automata. Regular and
+context-free languages, pumping lemma. Turing machines and undecidability.
+Section 7: Compiler Design
+Lexical analysis, parsing, syntax-directed translation. Runtime environments. Intermediate code
+generation. Local optimisation, Data flow analyses: constant propagation, liveness analysis, common sub
+expression elimination.
+Section 8: Operating System
+System calls, processes, threads, inter‐process communication, concurrency and synchronization.
+Deadlock. CPU and I/O scheduling. Memory management and virtual memory. File systems.
+Section 9: Databases
+ER‐model. Relational model: relational algebra, tuple calculus, SQL. Integrity constraints, normal forms.
+File organization, indexing (e.g., B and B+ trees). Transactions and concurrency control.
+Section 10: Computer Networks
+Concept of layering: OSI and TCP/IP Protocol Stacks; Basics of packet, circuit and virtual circuit
+switching; Data link layer: framing, error detection, Medium Access Control, Ethernet bridging; Routing
+protocols: shortest path, flooding, distance vector and link state routing; Fragmentation and IP addressing,
+IPv4, CIDR notation, Basics of IP support protocols (ARP, DHCP, ICMP), Network Address Translation
+(NAT); Transport layer: flow control and congestion control, UDP, TCP, sockets; Application layer
+protocols: DNS, SMTP, HTTP, FTP, Email.`
+};
+
+// Topic lists for subjects to allow fine-grained selection in the UI
+export const SUBJECT_TOPICS: Record<string, string[]> = {
+  'Computer Science and Information Technology': [
+    'Discrete Mathematics: Logic & Sets',
+    'Discrete Mathematics: Graphs & Combinatorics',
+    'Linear Algebra',
+    'Calculus',
+    'Probability & Statistics',
+    'Digital Logic',
+    'Computer Organization & Architecture',
+    'Programming & Data Structures',
+    'Algorithms',
+    'Theory of Computation',
+    'Compiler Design',
+    'Operating Systems',
+    'Databases',
+    'Computer Networks'
+  ]
+};
 
 const QUESTION_GENERATION_PROMPT = `You are an expert GATE (Graduate Aptitude Test in Engineering) question generator. Generate high-quality, authentic GATE exam questions based on the specified requirements.
 
@@ -124,50 +169,50 @@ function extractQuestionsFromText(text: string): GeneratedQuestion[] {
 /**
  * Generate GATE exam questions using AI
  */
-export async function generateGATEQuestions(request: QuestionGenerationRequest): Promise<QuestionGenerationResult> {
-  const apiKey = process.env.GROQ_API_KEY || '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';
-  
-  if (!apiKey) {
-    return {
-      questions: [],
-      success: false,
-      error: "GROQ_API_KEY not configured"
-    };
+export async function generateGATEQuestions(request: QuestionGenerationRequest, aiEngine: 'groq' | 'gemini' | 'openai' = 'groq'): Promise<QuestionGenerationResult> {
+  // Choose engine: groq (default) or other experimental engines
+  const groqApiKey = process.env.GROQ_API_KEY;
+
+  if (aiEngine === 'groq' && !groqApiKey) {
+    return { questions: [], success: false, error: 'GROQ_API_KEY not configured' };
   }
 
   try {
-    const groq = new Groq({ apiKey });
-    
+    let generatedText: string | undefined;
+
     const subjectsList = request.subjects.join(', ');
     const questionTypesList = request.questionTypes.join(', ');
-    const syllabusContext = request.syllabus ? `\nFocus on these syllabus topics: ${request.syllabus}` : '';
-    
-    const prompt = `${QUESTION_GENERATION_PROMPT}
+  const syllabusContext = request.syllabus ? `\nFocus on these syllabus topics: ${request.syllabus}` : '';
+  const topicsContext = request.topics && request.topics.length ? `\nPrioritise these topics: ${request.topics.join(', ')}. Distribute questions across these topics where possible.` : '';
+  const prompt = `${QUESTION_GENERATION_PROMPT}
 
 REQUIREMENTS:
 - Subjects: ${subjectsList}
 - Number of questions: ${request.questionCount}
 - Difficulty level: ${request.difficulty}
 - Question types: ${questionTypesList}
-- Distribution: Generate questions evenly across specified subjects and types${syllabusContext}
+- Distribution: Generate questions evenly across specified subjects and types, and prioritise selected topics when provided.${syllabusContext}${topicsContext}
 
 Generate ${request.questionCount} high-quality GATE exam questions following the above specifications:`;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      model: 'llama-3.1-8b-instant',
-      temperature: 0.8,
-      max_tokens: 8000,
-      top_p: 0.9
-    });
+  const groq = new Groq({ apiKey: groqApiKey });
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        model: 'llama-3.1-8b-instant',
+        temperature: 0.8,
+        max_tokens: 8000,
+        top_p: 0.9
+      });
 
-    const generatedText = chatCompletion.choices[0]?.message?.content;
-    
+      // Normalize possible null to undefined and ensure string type
+  const raw = chatCompletion.choices[0]?.message?.content ?? undefined;
+  generatedText = typeof raw === 'string' ? raw : undefined;
+
     if (!generatedText) {
       throw new Error('No content generated from AI model');
     }

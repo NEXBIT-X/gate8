@@ -20,7 +20,7 @@ import {
   Target,
   BookOpen
 } from 'lucide-react';
-import { GATE_SUBJECTS } from '@/lib/ai/gateQuestions';
+import { GATE_SUBJECTS, SUBJECT_SYLLABI, SUBJECT_TOPICS } from '@/lib/ai/gateQuestions';
 
 interface GenerationResult {
   success: boolean;
@@ -63,6 +63,8 @@ export default function AIQuestionGenerator() {
   const [questionTypes, setQuestionTypes] = useState<('MCQ' | 'MSQ' | 'NAT')[]>(['MCQ']);
   const [testId, setTestId] = useState<string>('');
   const [syllabus, setSyllabus] = useState<string>('');
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [topicFilter, setTopicFilter] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -74,6 +76,17 @@ export default function AIQuestionGenerator() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [showGeminiFeatures, setShowGeminiFeatures] = useState(false);
+  const [generationNotice, setGenerationNotice] = useState<string | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingDraft, setEditingDraft] = useState<any>(null);
+  const [aiEngine, setAiEngine] = useState<'groq' | 'gemini'>('groq');
+
+  // Defensive: if a result arrives but the loading flag is still true, clear it
+  React.useEffect(() => {
+    if (result && isGenerating) {
+      setIsGenerating(false);
+    }
+  }, [result, isGenerating]);
 
   const handleSubjectChange = (subject: string, checked: boolean) => {
     if (checked) {
@@ -91,6 +104,89 @@ export default function AIQuestionGenerator() {
     }
   };
 
+  // Toggle a topic in the selectedTopics list
+  const toggleTopic = (topic: string) => {
+    setSelectedTopics(prev => prev.includes(topic) ? prev.filter(t => t !== topic) : [...prev, topic]);
+  };
+
+  // Load available tests for selection (graceful fallback)
+  const [availableTests, setAvailableTests] = useState<{ id: string; title: string }[]>([]);
+  const [testsLoading, setTestsLoading] = useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setTestsLoading(true);
+      try {
+        const resp = await fetch('/api/admin/tests/list');
+        if (!resp.ok) throw new Error('Not available');
+        const data = await resp.json();
+        if (mounted && data && Array.isArray(data.tests)) {
+          setAvailableTests(data.tests.map((t: any) => ({ id: String(t.id), title: t.title })));
+        }
+      } catch (err) {
+        // endpoint missing or error — keep empty list
+        setAvailableTests([]);
+      } finally {
+        if (mounted) setTestsLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Inline create test component
+  function CreateTestInline({ onCreated }: { onCreated: (testId: string, title: string) => void }) {
+    const [title, setTitle] = useState('New AI Test');
+    const [duration, setDuration] = useState(60);
+    const [startTime, setStartTime] = useState('');
+    const [endTime, setEndTime] = useState('');
+    const [creating, setCreating] = useState(false);
+    const [err, setErr] = useState<string | null>(null);
+
+    const handleCreate = async () => {
+      setErr(null);
+      setCreating(true);
+      try {
+        const s = startTime ? new Date(startTime).toISOString() : new Date().toISOString();
+        const e = endTime ? new Date(endTime).toISOString() : new Date(Date.now() + duration * 60 * 1000).toISOString();
+        const resp = await fetch('/api/admin/tests/create', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title.trim(), duration_minutes: Number(duration), start_time: s, end_time: e })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Create failed');
+        if (data && data.test && data.test.id) {
+          onCreated(String(data.test.id), data.test.title || title);
+          // Add to available tests list locally
+          setAvailableTests(prev => [{ id: String(data.test.id), title: data.test.title || title }, ...prev]);
+        } else {
+          throw new Error('Unexpected response');
+        }
+      } catch (e: any) {
+        setErr(e?.message || String(e));
+      } finally {
+        setCreating(false);
+      }
+    };
+
+    return (
+      <div className="space-y-3 w-full h-full flex flex-col justify-start">
+        {err && <div className="text-sm text-red-600">{err}</div>}
+        <input title="create-test-title" className="w-full border rounded px-3 py-2 text-sm" value={title} onChange={e => setTitle(e.target.value)} />
+        {/* Compact row: small duration + flexible start datetime */}
+        <div className="flex gap-3 items-center">
+          <input title="create-duration" type="number" className="w-24 border rounded px-3 py-2 text-sm" value={duration} onChange={e => setDuration(Number(e.target.value) || 60)} placeholder="mins" />
+          <input title="create-start" type="datetime-local" className="flex-1 border rounded px-3 py-2 text-sm" value={startTime} onChange={e => setStartTime(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-1 gap-2">
+          <input title="create-end" type="datetime-local" className="w-full border rounded px-3 py-2 text-sm" value={endTime} onChange={e => setEndTime(e.target.value)} />
+        </div>
+        <div className="flex gap-2 mt-auto">
+          <Button size="sm" onClick={handleCreate} disabled={creating}>{creating ? 'Creating...' : 'Create Test'}</Button>
+        </div>
+      </div>
+    );
+  }
+
   const handleGenerate = async () => {
     if (selectedSubjects.length === 0) {
       alert('Please select at least one subject');
@@ -106,6 +202,9 @@ export default function AIQuestionGenerator() {
     setResult(null);
 
     try {
+      
+      
+      // Default: call server-side generator
       const response = await fetch('/api/admin/questions/generate', {
         method: 'POST',
         headers: {
@@ -117,30 +216,39 @@ export default function AIQuestionGenerator() {
           difficulty,
           questionTypes,
           testId: testId.trim() || undefined,
-          syllabus: syllabus.trim() || undefined
+          syllabus: syllabus.trim() || undefined,
+          topics: selectedTopics.length ? selectedTopics : undefined,
+          aiEngine
         }),
       });
-
+      
       const data = await response.json();
-
+      
       if (!response.ok) {
         throw new Error(data.error || `Server error: ${response.status}`);
       }
-
-      // Validate the response structure
+      
       if (!data.success) {
         throw new Error(data.error || 'Generation failed');
       }
-
-      if (!data.questions || !Array.isArray(data.questions)) {
-        throw new Error('Invalid response format: questions array missing');
-      }
-
-      if (data.questions.length === 0) {
+      
+      if (!data.questions || !Array.isArray(data.questions) || data.questions.length === 0) {
         throw new Error('No questions were generated. Please try again with different parameters.');
       }
-
-      setResult(data);
+      
+      // Ensure we enforce exact-question-count behaviour on the client
+      setGenerationNotice(null);
+      let questions = data.questions;
+      if (questions.length > questionCount) {
+        questions = questions.slice(0, questionCount);
+        setGenerationNotice(`Trimmed ${data.questions.length - questions.length} extra question(s) to match requested count (${questionCount}).`);
+      } else if (questions.length < questionCount) {
+        setGenerationNotice(`Generated ${questions.length} of requested ${questionCount} questions. You can click "Generate ${questionCount - questions.length} more" to append the missing items.`);
+      }
+      setResult({ ...data, questions });
+  // Stop loading indicator after successful generation
+  setIsGenerating(false);
+      
     } catch (error) {
       console.error('Question generation error:', error);
       setResult({
@@ -150,6 +258,34 @@ export default function AIQuestionGenerator() {
         message: '',
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       });
+      setIsGenerating(false);
+    }
+  };
+
+  // Generate additional questions to reach exact requested count
+  const generateMoreToFill = async () => {
+    if (!result) return;
+    const have = result.questions ? result.questions.length : 0;
+    const need = Math.max(0, questionCount - have);
+    if (need === 0) return;
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/admin/questions/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjects: selectedSubjects, questionCount: need, difficulty, questionTypes, syllabus: syllabus.trim() || undefined, aiEngine })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Generation failed');
+      const newQs = Array.isArray(data.questions) ? data.questions : [];
+      const merged = [...(result.questions || []), ...newQs];
+      let final = merged;
+      if (merged.length > questionCount) final = merged.slice(0, questionCount);
+      setResult({ ...(result || {}), questions: final });
+      setGenerationNotice(final.length === questionCount ? `Filled to requested count (${questionCount}).` : `Now have ${final.length} questions (requested ${questionCount}).`);
+    } catch (err: any) {
+      console.error('Error generating more:', err);
+      setGenerationNotice('Failed to generate additional questions.');
     } finally {
       setIsGenerating(false);
     }
@@ -206,12 +342,76 @@ export default function AIQuestionGenerator() {
     }
   };
 
+  // Change the question type (MCQ/MSQ/NAT) and ask AI to reformat the question accordingly
+  const changeQuestionType = async (index: number, newType: 'MCQ' | 'MSQ' | 'NAT') => {
+    if (!result || !result.questions || !result.questions[index]) return;
+    setIsEnhancing(true);
+    try {
+      const q = result.questions[index];
+      const resp = await fetch('/api/admin/questions/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionText: q.question_text || q.question || '',
+          questionType: newType,
+          subject: q.subject || selectedSubjects[0] || 'Computer Science and Information Technology',
+          options: q.options || undefined,
+          explanation: q.explanation || undefined,
+          targetDifficulty: q.difficulty || undefined
+        })
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Enhancement failed');
+      }
+
+      const enh = data.enhancement;
+
+      setResult((prev: any) => {
+        if (!prev) return prev;
+        const copy = { ...prev } as any;
+        copy.questions = [...(copy.questions || [])];
+        const updated = { ...copy.questions[index] } as any;
+        // Apply enhancements where available
+        if (enh?.improved_question) updated.question_text = enh.improved_question;
+        if (enh?.explanation_enhanced) updated.explanation = enh.explanation_enhanced;
+        if (enh?.difficulty_adjusted) updated.difficulty = enh.difficulty_adjusted;
+        // Update type
+        updated.question_type = newType;
+        // Adjust options/correct_answer for NAT vs MCQ/MSQ
+        if (newType === 'NAT') {
+          updated.options = [];
+          // If previous correct answer was array/string, attempt to keep numeric string else blank
+          if (typeof updated.correct_answer === 'string' && !isNaN(Number(updated.correct_answer))) {
+            updated.correct_answer = updated.correct_answer;
+          } else if (Array.isArray(updated.correct_answer) && updated.correct_answer.length > 0 && !isNaN(Number(updated.correct_answer[0]))) {
+            updated.correct_answer = String(updated.correct_answer[0]);
+          } else {
+            updated.correct_answer = '';
+          }
+        } else {
+          // For MCQ/MSQ ensure there are options
+          if (!Array.isArray(updated.options) || updated.options.length === 0) {
+            updated.options = ['Option A', 'Option B', 'Option C', 'Option D'];
+            updated.correct_answer = newType === 'MCQ' ? 'Option A' : ['Option A'];
+          }
+        }
+
+        copy.questions[index] = updated;
+        return copy;
+      });
+
+    } catch (err: any) {
+      console.error('Error changing question type:', err);
+      alert('Failed to change question type: ' + (err?.message || 'unknown'));
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
   const popularSubjects = [
-    'Computer Science and Information Technology',
-    'Electronics and Communication Engineering',
-    'Electrical Engineering',
-    'Mechanical Engineering',
-    'Civil Engineering'
+  'Computer Science and Information Technology'
   ];
 
   return (
@@ -222,8 +422,8 @@ export default function AIQuestionGenerator() {
       </div>
 
       <div className="space-y-6">
-        {/* Basic Settings */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {/* Basic Settings */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <div>
             <Label htmlFor="questionCount">Number of Questions</Label>
             <Input
@@ -237,18 +437,88 @@ export default function AIQuestionGenerator() {
             />
           </div>
 
-          <div>
-            <Label htmlFor="testId">Test ID (Optional)</Label>
-            <Input
-              id="testId"
-              placeholder="Leave empty to generate only"
-              value={testId}
-              onChange={(e) => setTestId(e.target.value)}
-              className="mt-1"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              If provided, questions will be added to this test
-            </p>
+          <div className="flex flex-col md:col-span-2">
+             <Label>Target Test (optional)</Label>
+             <div className="mt-1">
+               <select title="select-test" className="w-full border rounded px-3 py-2 text-sm" value={testId} onChange={e => setTestId(e.target.value)}>
+                  <option value="">(No test — generate only)</option>
+                  {availableTests.map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+              <p className="text-xs text-gray-500 mt-1">Select an existing test to push questions into, or create a new test below.</p>
+            </div>
+            <div className="mt-3 p-4 border rounded bg-muted/10 w-full h-full min-h-[220px]">
+               <h4 className="text-sm font-medium mb-2">Create Test</h4>
+               {/* Create box fills and stretches the right column */}
+               <div className="w-full h-full flex flex-col">
+                 <CreateTestInline onCreated={(tId, title) => { setTestId(tId); setGenerationNotice(`Created test "${title}" and selected it.`); }} />
+               </div>
+             </div>
+           </div>
+        </div>
+
+        {/* Subjects selector with wide topics panel */}
+        <div>
+          <Label>Subjects</Label>
+          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Left: subject list */}
+            <div className="col-span-1 space-y-3">
+              {GATE_SUBJECTS.map(s => (
+                <div key={s} className="flex items-start gap-3">
+                  <div className="mt-1">
+                    <Checkbox checked={selectedSubjects.includes(s)} onCheckedChange={(v) => handleSubjectChange(s, !!v)} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{s}</span>
+                      {s === 'Computer Science and Information Technology' && (
+                        <Button size="sm" variant="ghost" onClick={() => setSyllabus(SUBJECT_SYLLABI[s] || '')}>Load syllabus</Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Select to show topics on the right.</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Right: topics panel (spans two columns on md) */}
+            <div className="col-span-1 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Topics</label>
+                <div className="flex items-center gap-2">
+                  <input placeholder="Filter topics..." value={topicFilter} onChange={e => setTopicFilter(e.target.value)} className="border rounded px-2 py-1 text-sm" />
+                  <Button size="sm" variant="outline" onClick={() => {
+                    const subject = selectedSubjects[0] || GATE_SUBJECTS[0];
+                    setSelectedTopics(SUBJECT_TOPICS[subject] || []);
+                  }}>Select all</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedTopics([])}>Clear</Button>
+                </div>
+              </div>
+              <div className="mt-3 border rounded p-3 bg-muted/5 max-h-80 overflow-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {(() => {
+                    const subject = selectedSubjects[0] || GATE_SUBJECTS[0];
+                    const topics = (SUBJECT_TOPICS[subject] || []).filter(t => t.toLowerCase().includes(topicFilter.toLowerCase()));
+                    if (topics.length === 0) return <div className="text-sm text-gray-500">No topics match.</div>;
+                    return topics.map(t => {
+                      const active = selectedTopics.includes(t);
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          title={t}
+                          onClick={() => toggleTopic(t)}
+                          className={`w-full text-left text-base px-4 py-3 rounded-md border break-words leading-tight flex items-center justify-between ${active ? 'bg-gray-700 text-black border-black-600' : 'bg-white text-gray-800 border-gray-200'}`}>
+                          <span className="text-sm font-medium">{t}</span>
+                          <span className="text-xs text-gray-500 ml-2">{active ? 'Selected' : ''}</span>
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -312,6 +582,17 @@ export default function AIQuestionGenerator() {
                 </Label>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* AI Model Selection */}
+        <div>
+          <Label>AI Model</Label>
+          <div className="mt-2">
+            <select title="ai-engine" className="w-full border rounded px-3 py-2 text-sm" value={aiEngine} onChange={e => setAiEngine(e.target.value as any)}>
+              <option value="groq">Groq (default)</option>
+              <option value="gemini">Gemini (experimental)</option>
+            </select>
           </div>
         </div>
 
@@ -458,6 +739,16 @@ export default function AIQuestionGenerator() {
             </Card>
 
             {/* Generated Questions Display */}
+            {generationNotice && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded mb-3">
+                {generationNotice}
+                {result && result.questions && result.questions.length < questionCount && (
+                  <div className="mt-2">
+                    <Button size="sm" onClick={generateMoreToFill} disabled={isGenerating}>Generate {questionCount - result.questions.length} more</Button>
+                  </div>
+                )}
+              </div>
+            )}
             {result.success && result.questions && result.questions.length > 0 && (
               <Card className="p-4">
                 <div className="flex items-center gap-2 mb-4">
@@ -470,103 +761,90 @@ export default function AIQuestionGenerator() {
                     <div key={index} className="border rounded-lg p-4 bg-muted/20">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            Q{index + 1}
-                          </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            {question.question_type}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {question.marks} marks
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {question.difficulty}
-                          </Badge>
+                          <Badge variant="outline" className="text-xs">Q{index + 1}</Badge>
+                          <Badge variant="secondary" className="text-xs">{question.question_type}</Badge>
+                          <Badge variant="outline" className="text-xs">{question.marks} marks</Badge>
+                          <Badge variant="outline" className="text-xs">{question.difficulty}</Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => analyzeQuestionQuality(question.question_text, question.question_type, question.options)}
-                            disabled={isAnalyzing}
-                          >
-                            <Target className="h-3 w-3 mr-1" />
-                            Analyze
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => enhanceQuestion(question.question_text, question.question_type, question.subject)}
-                            disabled={isEnhancing}
-                          >
-                            <Wand2 className="h-3 w-3 mr-1" />
-                            Enhance
-                          </Button>
+                          <select aria-label={`Change question type for Q${index + 1}`} value={question.question_type} onChange={(e) => changeQuestionType(index, e.target.value as any)} className="border rounded px-2 py-1 text-sm">
+                            <option value="MCQ">MCQ</option>
+                            <option value="MSQ">MSQ</option>
+                            <option value="NAT">NAT</option>
+                          </select>
+                          <Button size="sm" variant="outline" onClick={() => analyzeQuestionQuality(question.question_text, question.question_type, question.options)} disabled={isAnalyzing}><Target className="h-3 w-3 mr-1" />Analyze</Button>
+                          <Button size="sm" variant="outline" onClick={() => enhanceQuestion(question.question_text, question.question_type, question.subject)} disabled={isEnhancing}><Wand2 className="h-3 w-3 mr-1" />Enhance</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingIndex(index); setEditingDraft(JSON.parse(JSON.stringify(question || {}))); }}>Edit</Button>
                         </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <p className="font-medium text-sm">
-                          <span className="text-muted-foreground">Subject:</span> {question.subject}
-                        </p>
-                        <p className="font-medium text-sm">
-                          <span className="text-muted-foreground">Topic:</span> {question.topic}
-                        </p>
-                        <p className="text-sm leading-relaxed">
-                          <span className="font-medium">Question:</span> {question.question_text}
-                        </p>
-                        
-                        {question.options && question.options.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="font-medium text-sm">Options:</p>
-                            <div className="grid grid-cols-1 gap-1 ml-4">
-                              {question.options.map((option: string, optionIndex: number) => (
-                                <div key={optionIndex} className="flex items-center gap-2">
-                                  <span className="text-xs font-mono bg-muted px-1 rounded">
-                                    {String.fromCharCode(65 + optionIndex)}
-                                  </span>
-                                  <span className="text-sm">{option}</span>
-                                  {(Array.isArray(question.correct_answer) 
-                                    ? question.correct_answer.includes(option)
-                                    : question.correct_answer === option) && (
-                                    <CheckCircle className="h-3 w-3 text-green-600" />
-                                  )}
-                                </div>
-                              ))}
+
+                      {/* Editor (inline) */}
+                      {editingIndex === index && editingDraft ? (
+                        <div className="space-y-2 border-t pt-2">
+                          <textarea title="edit-question-text" placeholder="Edit question text" value={editingDraft.question_text || ''} onChange={(e) => setEditingDraft((d: any) => ({ ...d, question_text: e.target.value }))} className="w-full p-2 border rounded" />
+                          {Array.isArray(editingDraft.options) && (
+                            <div>
+                              <label className="text-xs">Options</label>
+                              <div className="space-y-1 mt-1">
+                                {editingDraft.options.map((opt: string, i: number) => (
+                                  <input key={i} title={`edit-option-${i}`} placeholder={`Option ${i + 1}`} value={opt} onChange={(e) => setEditingDraft((d: any) => { const copy = { ...d }; copy.options = [...copy.options]; copy.options[i] = e.target.value; return copy; })} className="w-full p-1 border rounded text-sm" />
+                                ))}
+                              </div>
                             </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-2">
+                            <input title="edit-marks" placeholder="Marks" type="number" step="0.1" value={editingDraft.marks ?? 2} onChange={(e) => setEditingDraft((d: any) => ({ ...d, marks: Number(e.target.value) }))} className="w-full p-1 border rounded" />
+                            <input title="edit-negative-marks" placeholder="Negative marks" type="number" step="0.1" value={editingDraft.negative_marks ?? 0} onChange={(e) => setEditingDraft((d: any) => ({ ...d, negative_marks: Number(e.target.value) }))} className="w-full p-1 border rounded" />
                           </div>
-                        )}
-                        
-                        <div className="space-y-1">
-                          <p className="font-medium text-sm">
-                            Correct Answer: 
-                            <span className="ml-2 text-green-600 font-mono">
-                              {Array.isArray(question.correct_answer) 
-                                ? question.correct_answer.join(', ') 
-                                : question.correct_answer}
-                            </span>
-                          </p>
-                          <p className="font-medium text-sm">
-                            Marks: <span className="text-blue-600">{question.marks}</span>
-                            {question.negative_marks > 0 && (
-                              <span className="ml-2 text-red-600">
-                                (-{question.negative_marks} penalty)
-                              </span>
-                            )}
-                          </p>
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => {
+                              setResult((prev: any) => {
+                                if (!prev) return prev;
+                                const copy = { ...prev };
+                                copy.questions = [...(copy.questions || [])];
+                                copy.questions[index] = editingDraft;
+                                return copy;
+                              });
+                              setEditingIndex(null);
+                              setEditingDraft(null);
+                            }}>Save</Button>
+                            <Button size="sm" variant="outline" onClick={() => { setEditingIndex(null); setEditingDraft(null); }}>Cancel</Button>
+                          </div>
                         </div>
-                        
-                        {question.explanation && (
-                          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded">
-                            <p className="font-medium text-sm text-blue-800 dark:text-blue-200">
-                              Explanation:
-                            </p>
-                            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                              {question.explanation}
-                            </p>
+                      ) : null}
+
+                      <p className="font-medium text-sm"><span className="text-muted-foreground">Subject:</span> {question.subject}</p>
+                      <p className="font-medium text-sm"><span className="text-muted-foreground">Topic:</span> {question.topic}</p>
+                      <p className="text-sm leading-relaxed"><span className="font-medium">Question:</span> {question.question_text}</p>
+
+                      {question.options && question.options.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="font-medium text-sm">Options:</p>
+                          <div className="grid grid-cols-1 gap-1 ml-4">
+                            {question.options.map((option: string, optionIndex: number) => (
+                              <div key={optionIndex} className="flex items-center gap-2">
+                                <span className="text-xs font-mono bg-muted px-1 rounded">{String.fromCharCode(65 + optionIndex)}</span>
+                                <span className="text-sm">{option}</span>
+                                {(Array.isArray(question.correct_answer) ? question.correct_answer.includes(option) : question.correct_answer === option) && (
+                                  <CheckCircle className="h-3 w-3 text-green-600" />
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        )}
+                        </div>
+                      )}
+
+                      <div className="space-y-1">
+                        <p className="font-medium text-sm">Correct Answer: <span className="ml-2 text-green-600 font-mono">{Array.isArray(question.correct_answer) ? question.correct_answer.join(', ') : question.correct_answer}</span></p>
+                        <p className="font-medium text-sm">Marks: <span className="text-blue-600">{question.marks}</span>{question.negative_marks > 0 && (<span className="ml-2 text-red-600">(-{question.negative_marks} penalty)</span>)}</p>
                       </div>
+
+                      {question.explanation && (
+                        <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded">
+                          <p className="font-medium text-sm text-blue-800 dark:text-blue-200">Explanation:</p>
+                          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">{question.explanation}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -650,5 +928,7 @@ export default function AIQuestionGenerator() {
       </div>
     </Card>
   );
+  
+  
 }
 
