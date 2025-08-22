@@ -58,36 +58,70 @@ export async function POST(request: NextRequest) {
       if (!['MCQ', 'MSQ', 'NAT'].includes(q.question_type)) {
         throw new Error(`Question ${index + 1}: Invalid question type`);
       }
+
+      // Helper: map a label/number/text to an option text when options are provided
+      const tryMapToOption = (val: any, optionsArr: string[] | null): string | null => {
+        if (val === undefined || val === null) return null;
+        if (!optionsArr || optionsArr.length === 0) return String(val);
+        if (typeof val === 'number' && Number.isFinite(val)) {
+          const idx = Number(val) - 1;
+          if (idx >= 0 && idx < optionsArr.length) return optionsArr[idx];
+        }
+        const s = String(val).trim();
+        if (/^[A-Za-z]$/.test(s)) {
+          const idx = s.toUpperCase().charCodeAt(0) - 65;
+          if (idx >= 0 && idx < optionsArr.length) return optionsArr[idx];
+        }
+        if (/^\d+$/.test(s)) {
+          const idx = Number(s) - 1;
+          if (idx >= 0 && idx < optionsArr.length) return optionsArr[idx];
+        }
+        const match = optionsArr.find(o => o.trim().toLowerCase() === s.toLowerCase());
+        if (match) return match;
+        return s;
+      };
+
+      let options: string[] | null = Array.isArray(q.options) ? q.options : null;
       let correct_answer: string | string[];
+
       if (q.question_type === 'MCQ') {
-        if (!q.correct_answer || typeof q.correct_answer !== 'string') {
-          throw new Error(`Question ${index + 1}: MCQ requires a single correct answer`);
+        if (!options || options.length === 0) throw new Error(`Question ${index + 1}: MCQ requires options`);
+        const ca = q.correct_answer;
+        if (Array.isArray(ca)) {
+          if (ca.length === 0) throw new Error(`Question ${index + 1}: MCQ requires a single correct answer`);
+          const mapped = tryMapToOption(ca[0], options);
+          if (!mapped) throw new Error(`Question ${index + 1}: Unable to map MCQ correct answer to an option`);
+          correct_answer = mapped;
+        } else {
+          const mapped = tryMapToOption(ca, options);
+          if (!mapped) throw new Error(`Question ${index + 1}: Unable to map MCQ correct answer to an option`);
+          correct_answer = mapped;
         }
-        correct_answer = q.correct_answer;
       } else if (q.question_type === 'MSQ') {
-        if (!Array.isArray(q.correct_answer) || q.correct_answer.length === 0) {
-          throw new Error(`Question ${index + 1}: MSQ requires a non-empty array of correct answers`);
-        }
-        correct_answer = q.correct_answer;
+        if (!options || options.length === 0) throw new Error(`Question ${index + 1}: MSQ requires options`);
+        const ca = q.correct_answer;
+        let values: any[] = [];
+        if (Array.isArray(ca)) values = ca;
+        else if (typeof ca === 'string') values = ca.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        else if (typeof ca === 'number') values = [ca];
+        if (!values || values.length === 0) throw new Error(`Question ${index + 1}: MSQ requires a non-empty array of correct answers`);
+        const mappedArr: string[] = values.map(v => {
+          const m = tryMapToOption(v, options);
+          if (!m) throw new Error(`Question ${index + 1}: Unable to map one of the MSQ correct answers to an option`);
+          return m;
+        });
+        correct_answer = mappedArr;
       } else { // NAT
-        if (q.correct_answer === undefined || q.correct_answer === '') {
-          throw new Error(`Question ${index + 1}: NAT requires a correct answer`);
-        }
+        if (q.correct_answer === undefined || q.correct_answer === '') throw new Error(`Question ${index + 1}: NAT requires a correct answer`);
         correct_answer = q.correct_answer.toString();
       }
-      let options: string[] | null = null;
-      if (q.question_type === 'MCQ' || q.question_type === 'MSQ') {
-        if (!q.options || !Array.isArray(q.options) || q.options.length === 0) {
-          throw new Error(`Question ${index + 1}: ${q.question_type} requires options`);
-        }
-        options = q.options;
-      }
+
       return {
         test_id: testId,
         question_text: q.question_text,
-        question: q.question_text, // legacy fallback if only 'question' column exists
+        question: q.question_text,
         question_type: q.question_type,
-        options,
+        options: options,
         correct_answer,
         marks: q.marks,
         negative_marks: q.negative_marks || 0,

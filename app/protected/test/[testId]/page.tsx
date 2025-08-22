@@ -27,9 +27,7 @@ const TestInterface = () => {
     const [questionPanelOpen, setQuestionPanelOpen] = useState(true); // desktop always open
     const [visitedQuestions, setVisitedQuestions] = useState<Set<number>>(new Set());
     const [showMobilePalette, setShowMobilePalette] = useState(false);
-    const [showExitWarning, setShowExitWarning] = useState(false);
-    const [showBlockedWarning, setShowBlockedWarning] = useState(false);
-    const [showFullscreenNotice, setShowFullscreenNotice] = useState(false);
+    // UI warnings removed per requirement — counting/persisting still occurs silently
 
     // Fullscreen management
     // We use a ref to hold the setter so the onExitAttempt callback (passed into the hook)
@@ -38,11 +36,7 @@ const TestInterface = () => {
     const { state: fullscreenState, enterFullscreen, exitFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
         2, // Max 2 exit attempts (auto-submit after 2 exits)
             (attempts, maxAttempts) => {
-                console.log(`Fullscreen exit attempt ${attempts}/${maxAttempts}`);
-                setShowExitWarning(true);
-                setTimeout(() => setShowExitWarning(false), 3000);
-
-                // Persist exit attempt to server so it is durable for the attempt
+                // Persist exit attempt to server silently
                 (async () => {
                     try {
                         if (attemptId) {
@@ -55,7 +49,6 @@ const TestInterface = () => {
                             if (res.ok) {
                                 const json = await res.json().catch(() => ({}));
                                 const newCount = typeof json.exitAttempts === 'number' ? json.exitAttempts : attempts;
-                                // update local manager state
                                 try { setExitAttemptsRef.current(newCount); } catch (_) {}
                             }
                         }
@@ -64,18 +57,16 @@ const TestInterface = () => {
                     }
                 })();
             },
-                () => {
-                        console.log('Test blocked due to too many fullscreen exits');
-                        setShowBlockedWarning(true);
-                        // Auto-submit test immediately when blocked
-                        (async () => {
-                            try {
-                                await handleCompleteTest();
-                            } catch (e) {
-                                console.error('Auto-submit failed after fullscreen exits:', e);
-                            }
-                        })();
-                }
+            () => {
+                // Auto-submit when blocked; silent (no UI warnings)
+                (async () => {
+                    try {
+                        await handleCompleteTest();
+                    } catch (e) {
+                        console.error('Auto-submit failed after fullscreen exits:', e);
+                    }
+                })();
+            }
     );
 
     // Wire the returned setter into the ref so the onExitAttempt callback can call it
@@ -167,13 +158,10 @@ const TestInterface = () => {
                 setLoadingStage('ready');
                 await new Promise(resolve => setTimeout(resolve, 500)); // Show ready stage
                 
-                // Enter fullscreen when test is ready
+                // Enter fullscreen when test is ready (no UI notice)
                 try {
                     await enterFullscreen();
                     console.log('Entered fullscreen mode for test');
-                    // Show a short-lived notice informing user about remaining "backs"
-                    setShowFullscreenNotice(true);
-                    setTimeout(() => setShowFullscreenNotice(false), 5000);
                 } catch (fullscreenError) {
                     console.warn('Could not enter fullscreen:', fullscreenError);
                 }
@@ -568,54 +556,8 @@ const TestInterface = () => {
 
     return (
         <>
-            {/* Fullscreen Exit Warning */}
-            {showExitWarning && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
-                    <div className="bg-red-600 text-white p-6 rounded-lg max-w-md mx-4 text-center">
-                        <div className="text-2xl mb-4">⚠️ Warning!</div>
-                        <h3 className="text-lg font-bold mb-2">Fullscreen Exit Detected</h3>
-                        <p className="mb-4">
-                            You have attempted to exit fullscreen mode. 
-                            Attempts: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}
-                        </p>
-                        <p className="text-sm">
-                            {fullscreenState.maxExitAttempts - fullscreenState.exitAttempts} more attempts remaining before test is auto-submitted.
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* Test Blocked Warning */}
-            {showBlockedWarning && (
-                <div className="fixed inset-0 z-50 bg-red-900/90 backdrop-blur-sm flex items-center justify-center">
-                    <div className="bg-red-700 text-white p-8 rounded-lg max-w-lg mx-4 text-center">
-                        <div className="text-3xl mb-4">🚫 Test Blocked</div>
-                        <h3 className="text-xl font-bold mb-4">Too Many Fullscreen Exits</h3>
-                        <p className="mb-4">
-                            You have exceeded the maximum allowed fullscreen exit attempts ({fullscreenState.maxExitAttempts}).
-                        </p>
-                        <p className="mb-6 text-red-200">
-                            Your test will be automatically submitted in a few seconds for security reasons.
-                        </p>
-                        <div className="animate-pulse text-lg font-semibold">
-                            Auto-submitting test...
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Fullscreen entry notice (short-lived) */}
-            {showFullscreenNotice && fullscreenState.isFullscreen && (
-                <div className="fixed inset-0 z-50 pointer-events-none flex items-start justify-end p-4">
-                    <div className="pointer-events-auto bg-yellow-400 text-black p-3 rounded-lg shadow-lg max-w-sm">
-                        <div className="font-semibold">Only {Math.max(0, fullscreenState.maxExitAttempts - fullscreenState.exitAttempts)} backs available</div>
-                        <div className="text-xs opacity-90">Exits used: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}</div>
-                    </div>
-                </div>
-            )}
-
-            {/* Small persistent badge while in fullscreen */}
-            {fullscreenState.isFullscreen && !showFullscreenNotice && (
+            {/* Small persistent badge while in fullscreen (no warnings) */}
+            {fullscreenState.isFullscreen && (
                 <div className="fixed top-4 right-4 z-40">
                     <div className="bg-black/60 text-white px-3 py-1 rounded-full text-xs shadow">
                         Backs left: {Math.max(0, fullscreenState.maxExitAttempts - fullscreenState.exitAttempts)}/{fullscreenState.maxExitAttempts}

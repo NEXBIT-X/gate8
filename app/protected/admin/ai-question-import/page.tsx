@@ -319,8 +319,21 @@ export default function AIQuestionImportPage() {
   function EditableParsedQuestionCard({ question, index, onUpdate, onRemove }: { question: RawParsedQuestion & any; index: number; onUpdate: (q: any)=>void; onRemove: ()=>void }) {
     const [editMode, setEditMode] = React.useState(false);
     const [qText, setQText] = React.useState<string>(question.question_text || '');
-    const [options, setOptions] = React.useState<string[]>(Array.isArray(question.options) ? question.options : []);
-    const [correct, setCorrect] = React.useState<any>(question.correct_answer);
+  const [qType, setQType] = React.useState<string>(question.question_type || 'MCQ');
+  const [options, setOptions] = React.useState<string[]>(Array.isArray(question.options) ? question.options : []);
+  const [correct, setCorrect] = React.useState<any>(question.correct_answer);
+    const handleAddOption = () => {
+      setOptions(prev => [...prev, '']);
+    };
+    const handleRemoveOption = (i: number) => {
+      setOptions(prev => prev.filter((_, idx) => idx !== i));
+      // If correct was pointing to removed option (by exact match), clear it
+      if (typeof correct === 'string') {
+        // leave as-is; user can edit
+      } else if (Array.isArray(correct)) {
+        setCorrect((prev: any) => (Array.isArray(prev) ? prev.filter((c: any) => c !== prev[i]) : prev));
+      }
+    };
 
     const handleOptionChange = (i: number, value: string) => {
       const newOptions = [...options];
@@ -331,7 +344,17 @@ export default function AIQuestionImportPage() {
       setCorrect(value);
     };
     const handleSave = () => {
-      onUpdate({ ...question, question_text: qText, options, correct_answer: correct });
+      // Normalize when changing type
+      const payload: any = { ...question, question_text: qText, question_type: qType };
+      if (qType === 'NAT') {
+        // NAT should not have options; ensure correct_answer is a plain value
+        payload.options = undefined;
+        payload.correct_answer = typeof correct === 'string' || typeof correct === 'number' ? correct : (Array.isArray(correct) && correct.length ? correct[0] : '');
+      } else {
+        payload.options = options;
+        payload.correct_answer = correct;
+      }
+      onUpdate(payload);
       setEditMode(false);
     };
 
@@ -346,14 +369,37 @@ export default function AIQuestionImportPage() {
         {editMode ? (
           <div className="space-y-2">
             <textarea title='question-text' className="w-full border rounded p-2" value={qText} onChange={e => setQText(e.target.value)} />
-            {options && options.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium mb-1">Question Type</label>
+              <select title="question-type" className="w-full border rounded px-2 py-1 text-sm" value={qType} onChange={e => {
+                const newType = e.target.value;
+                setQType(newType);
+                // Adjust options/correct for NAT
+                if (newType === 'NAT') {
+                  setOptions([]);
+                  if (Array.isArray(correct)) setCorrect(correct.length ? correct[0] : '');
+                } else {
+                  // Ensure there are at least two option entries for MCQ/MSQ
+                  if (!options || options.length < 2) setOptions(['', '']);
+                }
+              }}>
+                <option value="MCQ">MCQ</option>
+                <option value="MSQ">MSQ</option>
+                <option value="NAT">NAT</option>
+              </select>
+            </div>
+            {qType !== 'NAT' && (
               <div>
                 <label className="block text-xs font-medium mb-1">Options:</label>
                 {options.map((opt: string, i: number) => (
-                  <div key={i} className="flex gap-2 mb-1">
+                  <div key={i} className="flex gap-2 mb-1 items-center">
                     <input title={`option-${i}`} className="border rounded px-2 py-1 text-sm flex-1" value={opt} onChange={e => handleOptionChange(i, e.target.value)} />
+                    <button type="button" className="px-2 py-1 bg-red-600 text-white rounded text-xs" onClick={() => handleRemoveOption(i)}>Remove</button>
                   </div>
                 ))}
+                <div className="mt-2">
+                  <button type="button" className="px-3 py-1 bg-green-600 text-white rounded text-sm" onClick={handleAddOption}>Add Option</button>
+                </div>
               </div>
             )}
             {options && options.length > 0 && (
@@ -361,6 +407,12 @@ export default function AIQuestionImportPage() {
                 <label className="block text-xs font-medium mb-1">Correct Option(s):</label>
                 <input title='correct-options' className="border rounded px-2 py-1 text-sm" value={Array.isArray(correct) ? correct.join(', ') : correct || ''} onChange={e => handleCorrectChange(e.target.value.split(',').map((s: string) => s.trim()))} />
                 <span className="text-xs text-muted-foreground ml-2">(comma separated for multiple)</span>
+              </div>
+            )}
+            {qType === 'NAT' && (
+              <div>
+                <label className="block text-xs font-medium mb-1">NAT Answer</label>
+                <input title="nat-answer" className="w-full border rounded px-2 py-1 text-sm" value={String(correct || '')} onChange={e => setCorrect(e.target.value)} />
               </div>
             )}
             <Button size="sm" variant="default" onClick={handleSave}>Save</Button>

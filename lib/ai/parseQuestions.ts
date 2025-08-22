@@ -36,6 +36,10 @@ export interface ParseQuestionsResult {
  * Uses Groq AI to intelligently convert any input format into structured questions.
  */
 import Groq from 'groq-sdk';
+// Use markdown-it to normalize incoming markdown into HTML/plain text
+import MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt({ html: true, linkify: true, typographer: true });
 export async function parseQuestionsWithAI(input: string): Promise<ParseQuestionsResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -43,7 +47,12 @@ export async function parseQuestionsWithAI(input: string): Promise<ParseQuestion
   }
 
   try {
-    const enhancedPrompt = `You are an expert question parser and formatter. Convert the given input into a structured JSON array of exam questions following this EXACT database schema:
+  // Pre-process markdown input: convert to HTML and also generate a plain-text version
+  // while preserving code blocks for the AI to detect "has_code".
+  const html = md.render(input || '');
+  const textForAI = formatCodeInText(input || '');
+
+  const enhancedPrompt = `You are an expert question parser and formatter. Convert the given input into a structured JSON array of exam questions following this EXACT database schema:
 
 DATABASE SCHEMA:
 {
@@ -78,8 +87,12 @@ CRITICAL REQUIREMENTS:
 
 RETURN ONLY VALID JSON ARRAY - NO MARKDOWN, NO EXPLANATIONS:
 
-Input to parse:
-${input}`;
+Input to parse (HTML and plain text provided):
+HTML:
+${html}
+
+PLAIN_TEXT:
+${textForAI}`;
 
     console.log('🔑 Groq API Key present:', !!apiKey);
     console.log('📝 Enhanced prompt length:', enhancedPrompt.length);
