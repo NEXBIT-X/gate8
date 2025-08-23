@@ -272,9 +272,7 @@ const TestResultPage = () => {
                                     <h3 className="font-semibold text-gray-800 dark:text-white">
                                         Question {index + 1}:
                                     </h3>
-                                    <div className="mt-2 text-sm leading-relaxed text-gray-800 dark:text-white">
-                                        {renderQuestionText(response.question.question)}
-                                    </div>
+                                   
                                     <div className="flex items-center gap-2">
                                         <span className={`px-2 py-1 rounded text-xs ${
                                             response.unanswered
@@ -290,6 +288,14 @@ const TestResultPage = () => {
                                         </span>
                                     </div>
                                 </div>
+                                <div>
+                                
+                                    <div className="mt-2 text-sm leading-relaxed text-gray-800 dark:text-white">
+                                        {renderQuestionText(response.question.question)}
+                                    </div>
+                                    <br />
+                                </div>
+                                 
                                 
                                 {/* Display options if available */}
                                 {response.question.options && response.question.options.length > 0 && (
