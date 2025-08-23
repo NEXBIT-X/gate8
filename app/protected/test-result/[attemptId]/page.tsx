@@ -291,7 +291,7 @@ const TestResultPage = () => {
                                 <div>
                                 
                                     <div className="mt-2 text-sm leading-relaxed text-gray-800 dark:text-white">
-                                        {renderQuestionText(response.question.question)}
+                                       <b> {renderQuestionText(response.question.question)} </b>
                                     </div>
                                     <br />
                                 </div>
