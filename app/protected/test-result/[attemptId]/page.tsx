@@ -408,7 +408,7 @@ const TestResultPage = () => {
                 <div className="mt-8 flex justify-center">
                     <button
                         onClick={() => router.push('/protected/dash')}
-                        className="px-6 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 font-medium"
+                        className="px-6 py-3 bg-zinc-600 rounded-lg hover:bg-purple-500 text-white font-medium"
                     >
                         Back to Dashboard
                     </button>
