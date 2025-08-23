@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface TestInstructionsModalProps {
     isOpen: boolean;
@@ -16,6 +16,23 @@ const TestInstructionsModal: React.FC<TestInstructionsModalProps> = ({
 }) => {
     const [hasReadInstructions, setHasReadInstructions] = useState(false);
 
+    // Prevent body scroll when modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        }
+
+        // Cleanup on unmount
+        return () => {
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleProceed = () => {
@@ -25,27 +42,22 @@ const TestInstructionsModal: React.FC<TestInstructionsModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div 
+            className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/70 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden" 
+            style={{ zIndex: 99999, position: 'fixed', inset: 0 }}
+        >
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
-                <div className="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
-                    <h2 className="text-xl font-bold">DEMO ONLINE TEST</h2>
-                    <button
-                        onClick={onClose}
-                        className="text-white hover:text-gray-200 text-2xl font-bold"
-                    >
-                        ×
-                    </button>
+                <div className="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center flex-shrink-0">
+                    <h2 className="text-xl font-bold">TEST INSTRUCTIONS</h2>
+                    
                 </div>
 
                 {/* Content */}
-                <div className="p-6">
-                    <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                        Instruction for Online Test
-                    </h3>
+                <div className="p-6 overflow-y-auto flex-1 pr-8">
                     
                     <p className="text-red-600 font-medium mb-6">
-                        Please read the instructions carefully before starting the test.
+                        Please read the instructions carefully before starting the test 
                     </p>
 
                     <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
@@ -103,7 +115,7 @@ const TestInstructionsModal: React.FC<TestInstructionsModalProps> = ({
                         <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Additional Information:</h4>
                         <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
                             <p>• The test will be conducted in fullscreen mode for security purposes.</p>
-                            <p>• You are allowed maximum 3 attempts to exit fullscreen. After that, your test will be automatically submitted.</p>
+                            <p>• You are allowed maximum 2 attempts to exit fullscreen. After that, your test will be automatically submitted.</p>
                             <p>• Make sure your computer is in proper working condition before starting.</p>
                             <p>• Please ensure stable internet connection throughout the test.</p>
                         </div>
@@ -125,11 +137,11 @@ const TestInstructionsModal: React.FC<TestInstructionsModalProps> = ({
                 </div>
 
                 {/* Footer */}
-                <div className="border-t p-4 flex justify-end items-center bg-gray-50 dark:bg-gray-700 rounded-b-lg">
+                <div className="border-t p-4 flex justify-end items-center bg-gray-50 dark:bg-gray-700 rounded-b-lg flex-shrink-0">
                     <div className="flex gap-3">
                         <button
                             onClick={onClose}
-                            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-gray-600 transition-colors"
                         >
                             Cancel
                         </button>
@@ -138,7 +150,7 @@ const TestInstructionsModal: React.FC<TestInstructionsModalProps> = ({
                             disabled={!hasReadInstructions}
                             className={`px-6 py-2 rounded font-medium transition-colors ${
                                 hasReadInstructions
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                    ? 'bg-green-600 text-white hover:bg-blue-700'
                                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             }`}
                         >
