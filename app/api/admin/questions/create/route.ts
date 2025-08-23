@@ -58,70 +58,56 @@ export async function POST(request: NextRequest) {
       if (!['MCQ', 'MSQ', 'NAT'].includes(q.question_type)) {
         throw new Error(`Question ${index + 1}: Invalid question type`);
       }
-
-      // Helper: map a label/number/text to an option text when options are provided
-      const tryMapToOption = (val: any, optionsArr: string[] | null): string | null => {
-        if (val === undefined || val === null) return null;
-        if (!optionsArr || optionsArr.length === 0) return String(val);
-        if (typeof val === 'number' && Number.isFinite(val)) {
-          const idx = Number(val) - 1;
-          if (idx >= 0 && idx < optionsArr.length) return optionsArr[idx];
-        }
-        const s = String(val).trim();
-        if (/^[A-Za-z]$/.test(s)) {
-          const idx = s.toUpperCase().charCodeAt(0) - 65;
-          if (idx >= 0 && idx < optionsArr.length) return optionsArr[idx];
-        }
-        if (/^\d+$/.test(s)) {
-          const idx = Number(s) - 1;
-          if (idx >= 0 && idx < optionsArr.length) return optionsArr[idx];
-        }
-        const match = optionsArr.find(o => o.trim().toLowerCase() === s.toLowerCase());
-        if (match) return match;
-        return s;
-      };
-
-      let options: string[] | null = Array.isArray(q.options) ? q.options : null;
+      // Accept flexible correct_answer formats coming from the UI: string, number, array, or comma-separated string
       let correct_answer: string | string[];
-
       if (q.question_type === 'MCQ') {
-        if (!options || options.length === 0) throw new Error(`Question ${index + 1}: MCQ requires options`);
-        const ca = q.correct_answer;
-        if (Array.isArray(ca)) {
-          if (ca.length === 0) throw new Error(`Question ${index + 1}: MCQ requires a single correct answer`);
-          const mapped = tryMapToOption(ca[0], options);
-          if (!mapped) throw new Error(`Question ${index + 1}: Unable to map MCQ correct answer to an option`);
-          correct_answer = mapped;
+        if (q.correct_answer === undefined || q.correct_answer === null || (typeof q.correct_answer === 'string' && q.correct_answer.trim() === '') || (Array.isArray(q.correct_answer) && q.correct_answer.length === 0)) {
+          throw new Error(`Question ${index + 1}: MCQ requires a single correct answer`);
+        }
+        if (Array.isArray(q.correct_answer)) {
+          // If array provided, take the first non-empty value as the MCQ correct answer
+          const first = q.correct_answer.find((v: any) => (v !== undefined && v !== null && String(v).trim() !== ''));
+          if (!first) throw new Error(`Question ${index + 1}: MCQ requires a single correct answer`);
+          correct_answer = String(first);
         } else {
-          const mapped = tryMapToOption(ca, options);
-          if (!mapped) throw new Error(`Question ${index + 1}: Unable to map MCQ correct answer to an option`);
-          correct_answer = mapped;
+          // Allow numeric answers or letter labels or actual option text
+          correct_answer = String(q.correct_answer).trim();
         }
       } else if (q.question_type === 'MSQ') {
-        if (!options || options.length === 0) throw new Error(`Question ${index + 1}: MSQ requires options`);
-        const ca = q.correct_answer;
-        let values: any[] = [];
-        if (Array.isArray(ca)) values = ca;
-        else if (typeof ca === 'string') values = ca.split(',').map(s => s.trim()).filter(s => s.length > 0);
-        else if (typeof ca === 'number') values = [ca];
-        if (!values || values.length === 0) throw new Error(`Question ${index + 1}: MSQ requires a non-empty array of correct answers`);
-        const mappedArr: string[] = values.map(v => {
-          const m = tryMapToOption(v, options);
-          if (!m) throw new Error(`Question ${index + 1}: Unable to map one of the MSQ correct answers to an option`);
-          return m;
-        });
-        correct_answer = mappedArr;
+        if (q.correct_answer === undefined || q.correct_answer === null || (Array.isArray(q.correct_answer) && q.correct_answer.length === 0) || (typeof q.correct_answer === 'string' && q.correct_answer.trim() === '')) {
+          throw new Error(`Question ${index + 1}: MSQ requires a non-empty set of correct answers`);
+        }
+        if (typeof q.correct_answer === 'string') {
+          // Accept comma-separated string and convert to array
+          const parts = q.correct_answer.split(',').map(s => s.trim()).filter(Boolean);
+          if (parts.length === 0) throw new Error(`Question ${index + 1}: MSQ requires a non-empty set of correct answers`);
+          correct_answer = parts;
+        } else if (Array.isArray(q.correct_answer)) {
+          correct_answer = q.correct_answer.map(String);
+        } else {
+          // fallback: coerce to string
+          correct_answer = [String(q.correct_answer)];
+        }
       } else { // NAT
-        if (q.correct_answer === undefined || q.correct_answer === '') throw new Error(`Question ${index + 1}: NAT requires a correct answer`);
-        correct_answer = q.correct_answer.toString();
+        if (q.correct_answer === undefined || q.correct_answer === null || String(q.correct_answer).trim() === '') {
+          throw new Error(`Question ${index + 1}: NAT requires a correct answer`);
+        }
+        // Store NAT as string for consistent DB representation
+        correct_answer = String(q.correct_answer).trim();
       }
-
+      let options: string[] | null = null;
+      if (q.question_type === 'MCQ' || q.question_type === 'MSQ') {
+        if (!q.options || !Array.isArray(q.options) || q.options.length === 0) {
+          throw new Error(`Question ${index + 1}: ${q.question_type} requires options`);
+        }
+        options = q.options;
+      }
       return {
         test_id: testId,
         question_text: q.question_text,
-        question: q.question_text,
+        question: q.question_text, // legacy fallback if only 'question' column exists
         question_type: q.question_type,
-        options: options,
+        options,
         correct_answer,
         marks: q.marks,
         negative_marks: q.negative_marks || 0,

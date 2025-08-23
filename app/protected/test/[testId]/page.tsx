@@ -33,46 +33,70 @@ const TestInterface = () => {
     // We use a ref to hold the setter so the onExitAttempt callback (passed into the hook)
     // can call it even though the setter is returned by the hook after invocation.
     const setExitAttemptsRef = React.useRef<(count: number) => void>(() => {});
-    const { state: fullscreenState, enterFullscreen, exitFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
-        2, // Max 2 exit attempts (auto-submit after 2 exits)
-            (attempts, maxAttempts) => {
-                // Persist exit attempt to server silently
-                (async () => {
-                    try {
-                        if (attemptId) {
-                            const res = await fetch('/api/tests/record-exit', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ attemptId })
-                            });
+    const [showExitWarning, setShowExitWarning] = useState(false);
+    const [showBlockedWarning, setShowBlockedWarning] = useState(false);
 
-                            if (res.ok) {
-                                const json = await res.json().catch(() => ({}));
-                                const newCount = typeof json.exitAttempts === 'number' ? json.exitAttempts : attempts;
-                                try { setExitAttemptsRef.current(newCount); } catch (_) {}
-                            }
+    const { state: fullscreenState, enterFullscreen, exitFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
+        3, // Max 3 exit attempts (allow 3 backs)
+        (attempts, maxAttempts) => {
+            // Show a transient warning to the user about the exit
+            setShowExitWarning(true);
+            // Hide after 3 seconds
+            window.setTimeout(() => setShowExitWarning(false), 3000);
+
+            // Persist exit attempt to server silently
+            (async () => {
+                try {
+                    if (attemptId) {
+                        const res = await fetch('/api/tests/record-exit', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ attemptId })
+                        });
+
+                        if (res.ok) {
+                            const json = await res.json().catch(() => ({}));
+                            const newCount = typeof json.exitAttempts === 'number' ? json.exitAttempts : attempts;
+                            try { setExitAttemptsRef.current(newCount); } catch (_) {}
                         }
-                    } catch (e) {
-                        console.warn('Failed to record exit attempt:', e);
                     }
-                })();
-            },
-            () => {
-                // Auto-submit when blocked; silent (no UI warnings)
-                (async () => {
-                    try {
-                        await handleCompleteTest();
-                    } catch (e) {
-                        console.error('Auto-submit failed after fullscreen exits:', e);
-                    }
-                })();
-            }
+                } catch (e) {
+                    console.warn('Failed to record exit attempt:', e);
+                }
+            })();
+        },
+        () => {
+            // When blocked (exceeded attempts), show blocking UI then auto-submit
+            setShowBlockedWarning(true);
+            // Auto-submit after brief delay to show the blocked message
+            setTimeout(async () => {
+                try {
+                    await handleCompleteTest();
+                } catch (e) {
+                    console.error('Auto-submit failed after fullscreen exits:', e);
+                }
+            }, 1500);
+        }
     );
 
     // Wire the returned setter into the ref so the onExitAttempt callback can call it
     React.useEffect(() => {
         if (setExitAttempts) setExitAttemptsRef.current = setExitAttempts;
     }, [setExitAttempts]);
+
+    // Auto-enter fullscreen when the test interface becomes ready
+    useEffect(() => {
+        if (loadingStage === 'ready') {
+            // Try to enter fullscreen silently
+            (async () => {
+                try {
+                    await enterFullscreen();
+                } catch (e) {
+                    // ignore
+                }
+            })();
+        }
+    }, [loadingStage, enterFullscreen]);
 
     useEffect(() => {
         const loadTestData = async () => {
@@ -556,6 +580,32 @@ const TestInterface = () => {
 
     return (
         <>
+            {/* Fullscreen Exit Warning */}
+            {showExitWarning && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
+                    <div className="bg-yellow-500 text-black p-6 rounded-lg max-w-md mx-4 text-center">
+                        <div className="text-2xl mb-2">⚠️ Fullscreen Exit</div>
+                        <p className="mb-2">You've exited fullscreen. Please return to fullscreen to continue the test.</p>
+                        <p className="text-sm">Exits used: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Test Blocked Warning */}
+            {showBlockedWarning && (
+                <div className="fixed inset-0 z-50 bg-red-900/90 backdrop-blur-sm flex items-center justify-center">
+                    <div className="bg-red-700 text-white p-8 rounded-lg max-w-lg mx-4 text-center">
+                        <div className="text-3xl mb-4">🚫 Test Blocked</div>
+                        <h3 className="text-xl font-bold mb-4">Too Many Fullscreen Exits</h3>
+                        <p className="mb-4">
+                            You have exceeded the maximum allowed fullscreen exit attempts ({fullscreenState.maxExitAttempts}).
+                        </p>
+                        <p className="mb-6 text-red-200">
+                            Your test will be automatically submitted for security reasons.
+                        </p>
+                    </div>
+                </div>
+            )}
             {/* Small persistent badge while in fullscreen (no warnings) */}
             {fullscreenState.isFullscreen && (
                 <div className="fixed top-4 right-4 z-40">

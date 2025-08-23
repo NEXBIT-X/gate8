@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AIQuestionGenerator from '@/components/ai-question-generator';
+import TestDurationEditor from '@/components/admin/test-duration-editor';
 
 interface AdminStats {
   totalUsers: number;
@@ -305,18 +306,18 @@ export default async function AdminDashboard() {
                       <div key={test.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex-1">
                           <h3 className="font-medium">{test.title}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {test.total_questions} questions • {test.duration_minutes} minutes
-                          </p>
+                          <div className="mt-2">
+                            <TestDurationEditor testId={test.id} initialDuration={test.duration_minutes} initialStart={test.start_time} initialEnd={test.end_time} />
+                          </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className={`text-xs px-2 py-1 rounded ${
+                          <span className={`text-sm px-3 py-1 rounded ${
                             test.is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 
                             'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300'
                           }`}>
                             {test.is_active ? 'Active' : 'Inactive'}
                           </span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-sm text-muted-foreground mt-1">
                             {new Date(test.created_at).toLocaleDateString()}
                           </span>
                         </div>
