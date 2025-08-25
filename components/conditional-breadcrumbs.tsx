@@ -4,7 +4,7 @@ import { Breadcrumbs } from "./breadcrumbs";
 
 export function ConditionalBreadcrumbs() {
   const pathname = usePathname();
-  const isTestPage = pathname?.includes('/test/');
+  const isTestPage = pathname?.includes('https://g8-lemon.vercel.app/protected/test/');
 
   if (isTestPage) {
     return null;
