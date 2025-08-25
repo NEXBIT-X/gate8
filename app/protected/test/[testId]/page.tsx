@@ -387,7 +387,7 @@ const TestInterface = () => {
             {question.options?.map((option, index) => (
                 <label
                     key={index}
-                    className={`flex items-center p-3 rounded border cursor-pointer transition-colors ${
+                    className={`flex items-start p-3 rounded border cursor-pointer transition-colors ${
                         selectedAnswers[question.id] === option
                             ? 'border-blue-500 bg-blue-500/10'
                             : 'border-gray-600 hover:border-gray-500'
@@ -399,9 +399,12 @@ const TestInterface = () => {
                         value={option}
                         checked={selectedAnswers[question.id] === option}
                         onChange={(e) => handleAnswerSelect(question.id, e.target.value, 'MCQ')}
-                        className="mr-3 w-4 h-4"
+                        className="mr-3 w-4 h-4 mt-1 flex-shrink-0"
                     />
-                    <span className="text-sm">{String.fromCharCode(65 + index)}. {option}</span>
+                    <div className="text-sm flex">
+                        <span className="mr-2">{String.fromCharCode(65 + index)}.</span>
+                        {renderQuestionText(option)}
+                    </div>
                 </label>
             ))}
         </div>
@@ -418,7 +421,7 @@ const TestInterface = () => {
                 {question.options?.map((option, index) => (
                     <label
                         key={index}
-                        className={`flex items-center p-3 rounded border cursor-pointer transition-colors ${
+                        className={`flex items-start p-3 rounded border cursor-pointer transition-colors ${
                             currentAnswers.includes(option)
                                 ? 'border-blue-500 bg-blue-500/10'
                                 : 'border-gray-600 hover:border-gray-500'
@@ -434,9 +437,12 @@ const TestInterface = () => {
                                     : currentAnswers.filter((a: string) => a !== option);
                                 handleAnswerSelect(question.id, newAnswers, 'MSQ');
                             }}
-                            className="mr-3 w-4 h-4"
+                            className="mr-3 w-4 h-4 mt-1 flex-shrink-0"
                         />
-                        <span className="text-sm">{String.fromCharCode(65 + index)}. {option}</span>
+                        <div className="text-sm flex">
+                            <span className="mr-2">{String.fromCharCode(65 + index)}.</span>
+                            {renderQuestionText(option)}
+                        </div>
                     </label>
                 ))}
             </div>
