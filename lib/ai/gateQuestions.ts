@@ -120,16 +120,25 @@ IMPORTANT INSTRUCTIONS:
 7. Use appropriate GATE marking scheme: MCQ/MSQ = 2 marks, NAT = 1-2 marks
 8. Cover fundamental to advanced concepts in each subject
 9. Questions should test conceptual understanding, not just memorization
+10. **LaTeX MATHEMATICAL NOTATION**: When generating questions with mathematical content:
+    - Use LaTeX syntax for all mathematical expressions
+    - Inline math: $formula$ (e.g., $x^2 + y^2 = r^2$)
+    - Display math: $$formula$$ (e.g., $$\lim_{x \to \infty} \frac{1}{x} = 0$$)
+    - Common symbols: \alpha, \beta, \gamma, \Delta, \Sigma, \int, \sum, \frac{a}{b}, \sqrt{x}
+    - Functions: \sin, \cos, \tan, \log, \ln, \exp
+    - Set theory: \in, \subset, \cup, \cap, \emptyset
+    - Logic: \land, \lor, \neg, \implies, \iff
+    - Complexity: O(n), \Theta(n), \Omega(n)
 
 Return ONLY a JSON array with this exact structure:
 [{
-  "question_text": "Question content here",
+  "question_text": "Question content here with $LaTeX$ math if needed",
   "question_type": "MCQ|MSQ|NAT",
-  "options": ["Option A", "Option B", "Option C", "Option D"], // Only for MCQ/MSQ
+  "options": ["Option A with $math$", "Option B", "Option C", "Option D"], // Only for MCQ/MSQ
   "correct_answer": "Option A" | ["Option A", "Option B"], // String for MCQ/NAT, Array for MSQ
   "marks": 2,
   "negative_marks": 0.67,
-  "explanation": "Detailed explanation of the answer",
+  "explanation": "Detailed explanation with $$display math$$ if needed",
   "subject": "Subject name",
   "topic": "Specific topic covered",
   "difficulty": "easy|medium|hard"

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { SmartTextRenderer } from '@/components/latex-renderer';
 import type { UserTestAttempt, UserQuestionResponse, Question, Test } from '@/lib/types';
 
 interface TestResult {
@@ -159,33 +160,10 @@ const TestResultPage = () => {
         return `${minutes}m ${secs}s`;
     };
 
-    // Render text with fenced-code support: code blocks shown in monospace pre tags
+    // Render text with LaTeX and code block support
     const renderQuestionText = (text?: string | null) => {
         if (!text) return null;
-        const normalized = text.replace(/\t/g, '    ');
-        const nodes: React.ReactNode[] = [];
-        const regex = /```(?:([\w+-]+)\n)?([\s\S]*?)```/g;
-        let lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = regex.exec(normalized)) !== null) {
-            const idx = match.index;
-            if (idx > lastIndex) {
-                const before = normalized.slice(lastIndex, idx);
-                nodes.push(<div className="whitespace-pre-line mb-2">{before}</div>);
-            }
-            const code = match[2] || '';
-            nodes.push(
-                <pre key={idx} className="bg-neutral-800 p-3 rounded font-mono whitespace-pre text-sm overflow-auto mb-2">
-                    {code}
-                </pre>
-            );
-            lastIndex = regex.lastIndex;
-        }
-        if (lastIndex < normalized.length) {
-            const rest = normalized.slice(lastIndex);
-            nodes.push(<div className="whitespace-pre-line">{rest}</div>);
-        }
-        return <div>{nodes}</div>;
+        return <SmartTextRenderer content={text} className="whitespace-pre-line" />;
     };
 
     return (

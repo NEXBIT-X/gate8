@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { TestLoading } from '@/components/loading';
 import { useFullscreenManager } from '@/lib/fullscreen-manager';
+import { SmartTextRenderer } from '@/components/latex-renderer';
 import type { TestWithQuestions, UserTestAttempt, Question } from '@/lib/types';
 
 type AnswerValue = string | string[] | number;
@@ -362,45 +363,10 @@ const TestInterface = () => {
         return { answered, marked, answeredMarked, notAnswered, notVisited };
     };
 
-    // Render text with fenced-code support: code blocks are shown in monospace pre tags
+    // Render text with LaTeX and code block support
     const renderQuestionText = (text?: string | null) => {
         if (!text) return null;
-        const normalized = text.replace(/\t/g, '    ');
-        const nodes: React.ReactNode[] = [];
-        const regex = /```(?:([\w+-]+)\n)?([\s\S]*?)```/g;
-        let lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = regex.exec(normalized)) !== null) {
-            const idx = match.index;
-            if (idx > lastIndex) {
-                const before = normalized.slice(lastIndex, idx);
-                // render normal text as lines with <br/>
-                nodes.push(
-                    <div key={`t-${lastIndex}`} className="whitespace-pre-line mb-2">{
-                        before.split(/\n/).map((line, i) => <span key={i}>{line}<br/></span>)
-                    }</div>
-                );
-            }
-            const lang = match[1];
-            const code = match[2] || '';
-            // Render code block inside a div.code with explicit <br/> per line
-            nodes.push(
-                <div key={`c-${idx}`} className="code bg-gray-800/10 dark:bg-gray-900/40 p-3 rounded font-mono text-sm overflow-auto mb-2">
-                    {lang && <div className="text-xs text-blue-300 mb-1">{lang.toUpperCase()}</div>}
-                    <div>{code.split(/\n/).map((line, i) => <div key={i}>{line}<br/></div>)}</div>
-                </div>
-            );
-            lastIndex = regex.lastIndex;
-        }
-        if (lastIndex < normalized.length) {
-            const rest = normalized.slice(lastIndex);
-            nodes.push(
-                <div key={`r-${lastIndex}`} className="whitespace-pre-line">{
-                    rest.split(/\n/).map((line, i) => <span key={i}>{line}<br/></span>)
-                }</div>
-            );
-        }
-        return <div>{nodes}</div>;
+        return <SmartTextRenderer content={text} className="whitespace-pre-line" />;
     };
 
     const renderQuestion = (question: Question) => {

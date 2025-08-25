@@ -106,3 +106,53 @@
   color: var(--card-foreground);
   border: var(--border);
 }
+
+/* LaTeX/KaTeX styling for better integration with the theme */
+.katex {
+  font-size: 1.1em;
+}
+
+.katex-display {
+  margin: 1em 0;
+  text-align: center;
+}
+
+/* Ensure LaTeX math blends well with dark theme */
+.dark .katex {
+  color: var(--foreground);
+}
+
+.dark .katex .base {
+  color: var(--foreground);
+}
+
+/* Style for LaTeX error display */
+.latex-error {
+  font-family: monospace;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  display: inline-block;
+}
+
+/* Inline math styling */
+.inline-math {
+  display: inline-block;
+  margin: 0 0.1em;
+}
+
+/* Block math styling */
+.block-math {
+  margin: 1rem 0;
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+/* Smart text container for mixed content */
+.smart-text-container {
+  line-height: 1.6;
+}
+
+.smart-text-container .katex {
+  line-height: 1.2;
+}

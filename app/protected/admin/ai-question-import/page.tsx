@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import type { RawParsedQuestion } from '@/lib/ai/parseQuestions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SmartTextRenderer } from '@/components/latex-renderer';
+import LaTeXEditor, { LaTeXInput } from '@/components/latex-editor';
 
 
 export default function AIQuestionImportPage() {
@@ -207,31 +209,10 @@ export default function AIQuestionImportPage() {
       setLoading(false);
     }
   };
-  // Helper function to render questions with code formatting
+  // Helper function to render questions with LaTeX and code formatting
   const renderQuestionMarkdown = (text?: string | null) => {
     if (!text) return null;
-    const normalized = String(text).replace(/\t/g, '    ');
-    const nodes: React.ReactNode[] = [];
-    const regex = /```(?:([\w+-]+)\n)?([\s\S]*?)```/g;
-    let lastIndex = 0;
-    let m: RegExpExecArray | null;
-      while ((m = regex.exec(normalized)) !== null) {
-      const idx = m.index;
-      if (idx > lastIndex) {
-        const before = normalized.slice(lastIndex, idx);
-        // Preserve all internal spacing and line breaks for the 'before' text
-        nodes.push(<div key={`t-${lastIndex}`} className="whitespace-pre-wrap mb-2">{before}</div>);
-      }
-      const code = m[2] || '';
-      nodes.push(
-        <pre key={`c-${idx}`} className="bg-gray-800 p-3 rounded font-mono whitespace-pre text-sm overflow-auto mb-2">{code}</pre>
-      );
-      lastIndex = regex.lastIndex;
-    }
-    if (lastIndex < normalized.length) {
-      nodes.push(<div key={`t-last`} className="whitespace-pre-wrap">{normalized.slice(lastIndex)}</div>);
-    }
-    return <div className="space-y-2">{nodes}</div>;
+    return <SmartTextRenderer content={text} className="whitespace-pre-wrap" />;
   };
 
 
@@ -286,30 +267,67 @@ export default function AIQuestionImportPage() {
       setExplanation('');
     };
   return (
-      <div className="space-y-2">
-        <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Question text" value={question_text} onChange={e => setQText(e.target.value)} />
-    <select title="question-type" className="w-full border rounded px-2 py-1 text-sm" value={question_type} onChange={e => setQType(e.target.value)}>
-          <option value="MCQ">MCQ</option>
-          <option value="MSQ">MSQ</option>
-          <option value="NAT">NAT</option>
-        </select>
+      <div className="space-y-4">
+        <LaTeXEditor
+          value={question_text}
+          onChange={setQText}
+          label="Question Text"
+          placeholder="Enter question with LaTeX math..."
+          rows={3}
+        />
+        <div>
+          <label className="block text-xs font-medium mb-1">Question Type</label>
+          <select title="question-type" className="w-full border rounded px-2 py-1 text-sm" value={question_type} onChange={e => setQType(e.target.value)}>
+            <option value="MCQ">MCQ</option>
+            <option value="MSQ">MSQ</option>
+            <option value="NAT">NAT</option>
+          </select>
+        </div>
         {(question_type === 'MCQ' || question_type === 'MSQ') && (
           <div>
             <label className="block text-xs font-medium mb-1">Options:</label>
             {options.map((opt, i) => (
-              <div key={i} className="flex gap-2 mb-1">
-                <input className="border rounded px-2 py-1 text-sm flex-1" placeholder={`Option ${i + 1}`} value={opt} onChange={e => handleOptionChange(i, e.target.value)} />
+              <div key={i} className="mb-2">
+                <LaTeXInput
+                  value={opt}
+                  onChange={(value) => handleOptionChange(i, value)}
+                  placeholder={`Option ${String.fromCharCode(65 + i)}: Enter with LaTeX...`}
+                />
               </div>
             ))}
           </div>
         )}
         {(question_type === 'MCQ' || question_type === 'MSQ') && (
-          <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Correct option(s), comma separated for MSQ" value={correct} onChange={e => setCorrect(e.target.value)} />
+          <div>
+            <label className="block text-xs font-medium mb-1">Correct Answer(s)</label>
+            <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Correct option(s), comma separated for MSQ" value={correct} onChange={e => setCorrect(e.target.value)} />
+          </div>
         )}
         {question_type === 'NAT' && (
-          <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Correct answer (number)" value={correct} onChange={e => setCorrect(e.target.value)} />
+          <LaTeXInput
+            value={correct}
+            onChange={setCorrect}
+            label="Correct Answer"
+            placeholder="Enter numerical answer with LaTeX if needed..."
+          />
         )}
-        <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Explanation (optional)" value={explanation} onChange={e => setExplanation(e.target.value)} />
+        <LaTeXEditor
+          value={explanation}
+          onChange={setExplanation}
+          label="Explanation (Optional)"
+          placeholder="Enter explanation with LaTeX math..."
+          rows={2}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs font-medium mb-1">Marks</label>
+            <input type="number" title="marks" className="w-full border rounded px-2 py-1 text-sm" value={marks} onChange={e => setMarks(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1">Negative Marks</label>
+            <input type="number" step="0.1" title="negative-marks" className="w-full border rounded px-2 py-1 text-sm" value={negativeMarks} onChange={e => setNegativeMarks(Number(e.target.value))} />
+          </div>
+        </div>
         <Button size="sm" variant="default" onClick={handleAdd}>Add Question</Button>
       </div>
     );
@@ -358,17 +376,38 @@ export default function AIQuestionImportPage() {
       setEditMode(false);
     };
 
+    // Helper function to detect LaTeX content
+    const hasLaTeX = (text: string) => {
+      return text.includes('$') || text.includes('\\frac') || text.includes('\\sqrt') || text.includes('\\sum') || text.includes('\\int') || text.includes('\\lim') || text.includes('\\begin{');
+    };
+
+    const questionHasLaTeX = hasLaTeX(qText) || 
+                           (options && options.some(opt => hasLaTeX(opt))) || 
+                           (question.explanation && hasLaTeX(question.explanation)) ||
+                           (correct && (Array.isArray(correct) ? correct.some(c => hasLaTeX(String(c))) : hasLaTeX(String(correct))));
+
     return (
       <div className="p-4 border rounded bg-card">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-sm font-semibold">Q{index + 1}</span>
-          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{question.question_type}</span>
+          <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">{question.question_type}</span>
+          {questionHasLaTeX && (
+            <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 px-2 py-1 rounded flex items-center gap-1">
+              📐 LaTeX
+            </span>
+          )}
           <Button size="sm" variant="outline" onClick={() => setEditMode(v => !v)}>{editMode ? 'Cancel' : 'Edit'}</Button>
           <Button size="sm" variant="destructive" onClick={onRemove}>Remove</Button>
         </div>
         {editMode ? (
-          <div className="space-y-2">
-            <textarea title='question-text' className="w-full border rounded p-2" value={qText} onChange={e => setQText(e.target.value)} />
+          <div className="space-y-4">
+            <LaTeXEditor
+              value={qText}
+              onChange={setQText}
+              label="Question Text"
+              placeholder="Enter question with LaTeX math..."
+              rows={3}
+            />
             <div>
               <label className="block text-xs font-medium mb-1">Question Type</label>
               <select title="question-type" className="w-full border rounded px-2 py-1 text-sm" value={qType} onChange={e => {
@@ -392,9 +431,15 @@ export default function AIQuestionImportPage() {
               <div>
                 <label className="block text-xs font-medium mb-1">Options:</label>
                 {options.map((opt: string, i: number) => (
-                  <div key={i} className="flex gap-2 mb-1 items-center">
-                    <input title={`option-${i}`} className="border rounded px-2 py-1 text-sm flex-1" value={opt} onChange={e => handleOptionChange(i, e.target.value)} />
-                    <button type="button" className="px-2 py-1 bg-red-600 text-white rounded text-xs" onClick={() => handleRemoveOption(i)}>Remove</button>
+                  <div key={i} className="flex gap-2 mb-2 items-start">
+                    <div className="flex-1">
+                      <LaTeXInput
+                        value={opt}
+                        onChange={(value) => handleOptionChange(i, value)}
+                        placeholder={`Option ${String.fromCharCode(65 + i)}: Enter with LaTeX...`}
+                      />
+                    </div>
+                    <button type="button" className="px-2 py-1 bg-red-600 text-white rounded text-xs mt-1" onClick={() => handleRemoveOption(i)}>Remove</button>
                   </div>
                 ))}
                 <div className="mt-2">
@@ -405,34 +450,88 @@ export default function AIQuestionImportPage() {
             {options && options.length > 0 && (
               <div>
                 <label className="block text-xs font-medium mb-1">Correct Option(s):</label>
-                <input title='correct-options' className="border rounded px-2 py-1 text-sm" value={Array.isArray(correct) ? correct.join(', ') : correct || ''} onChange={e => handleCorrectChange(e.target.value.split(',').map((s: string) => s.trim()))} />
+                <input title='correct-options' className="border rounded px-2 py-1 text-sm w-full" value={Array.isArray(correct) ? correct.join(', ') : correct || ''} onChange={e => handleCorrectChange(e.target.value.split(',').map((s: string) => s.trim()))} />
                 <span className="text-xs text-muted-foreground ml-2">(comma separated for multiple)</span>
               </div>
             )}
             {qType === 'NAT' && (
               <div>
-                <label className="block text-xs font-medium mb-1">NAT Answer</label>
-                <input title="nat-answer" className="w-full border rounded px-2 py-1 text-sm" value={String(correct || '')} onChange={e => setCorrect(e.target.value)} />
+                <LaTeXInput
+                  value={String(correct || '')}
+                  onChange={setCorrect}
+                  label="NAT Answer"
+                  placeholder="Enter numerical answer with LaTeX if needed..."
+                />
               </div>
             )}
             <Button size="sm" variant="default" onClick={handleSave}>Save</Button>
           </div>
           ) : (
           <div>
-            {/* Preserve original spacing and line breaks in displayed question text */}
-            <div className="font-medium whitespace-pre-wrap">{qText}</div>
+            {/* Rendered LaTeX question text with indicator */}
+            <div className="relative">
+              <div className="font-medium mb-2">
+                <SmartTextRenderer content={qText} className="prose dark:prose-invert" />
+              </div>
+              {(qText.includes('$') || qText.includes('\\')) && (
+                <span className="absolute top-0 right-0 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-full">
+                  📐 LaTeX
+                </span>
+              )}
+            </div>
+            
             {options && options.length > 0 && (
-              <ul className="list-disc ml-6">
-                {options.map((opt: string, i: number) => (
-                  <li key={i} className="whitespace-pre-wrap">{opt}</li>
-                ))}
-              </ul>
+              <div className="relative">
+                <ul className="list-none space-y-1 ml-0">
+                  {options.map((opt: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="font-mono text-sm mt-1">{String.fromCharCode(65 + i)})</span>
+                      <div className="flex-1">
+                        <SmartTextRenderer content={opt} className="prose dark:prose-invert" />
+                      </div>
+                      {(opt.includes('$') || opt.includes('\\')) && (
+                        <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-1 py-0.5 rounded">
+                          📐
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
+            
             {correct && (
-              <div className="text-green-700 text-sm mt-1">Correct: {Array.isArray(correct) ? correct.join(', ') : correct}</div>
+              <div className="text-green-700 dark:text-green-400 text-sm mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded">
+                <span className="font-medium">Correct: </span>
+                {Array.isArray(correct) ? (
+                  correct.map((ans, i) => (
+                    <span key={i} className="inline-flex items-center gap-1">
+                      <SmartTextRenderer content={ans} className="inline" />
+                      {(ans.includes('$') || ans.includes('\\')) && <span className="text-xs">📐</span>}
+                      {i < correct.length - 1 && ', '}
+                    </span>
+                  ))
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <SmartTextRenderer content={String(correct)} className="inline" />
+                    {(String(correct).includes('$') || String(correct).includes('\\')) && <span className="text-xs">📐</span>}
+                  </span>
+                )}
+              </div>
             )}
+            
             {question.explanation && (
-              <div className="text-blue-700 text-xs mt-1">Explanation: <span className="whitespace-pre-wrap">{question.explanation}</span></div>
+              <div className="relative mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+                <span className="text-blue-700 dark:text-blue-400 text-xs font-medium">Explanation: </span>
+                <div className="mt-1">
+                  <SmartTextRenderer content={question.explanation} className="text-xs prose dark:prose-invert" />
+                </div>
+                {(question.explanation.includes('$') || question.explanation.includes('\\')) && (
+                  <span className="absolute top-2 right-2 text-xs bg-blue-200 dark:bg-blue-800/50 text-blue-800 dark:text-blue-300 px-1 py-0.5 rounded">
+                    📐
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -465,13 +564,21 @@ export default function AIQuestionImportPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Questions Input</label>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                Questions Input
+                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-full flex items-center gap-1">
+                  📐 LaTeX Supported
+                </span>
+              </label>
               <textarea
                 className="w-full h-56 p-3 rounded border bg-background font-mono text-sm"
                 value={rawText}
                 onChange={e => setRawText(e.target.value)}
-                placeholder="Paste your questions here..."
+                placeholder="Paste your questions here... Use $math$ for inline LaTeX or $$math$$ for display math"
               />
+              <div className="text-xs text-gray-500 mt-1">
+                💡 LaTeX examples: $x^2 + y^2 = z^2$, $$\int_{`{a}`}^{`{b}`} f(x) dx$$, $\frac{`{a}`}{`{b}`}$, $\sqrt{`{x}`}$
+              </div>
             </div>
 
             {/* Test Configuration */}
@@ -560,7 +667,20 @@ export default function AIQuestionImportPage() {
           {result && result.questions && (
             <>
               <CardHeader>
-                <CardTitle>Parsed Questions ({result.questions?.length || 0})</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  Parsed Questions ({result.questions?.length || 0})
+                  {result.questions?.some((q: any) => {
+                    const hasLaTeX = (text: string) => text && (text.includes('$') || text.includes('\\frac') || text.includes('\\sqrt') || text.includes('\\sum') || text.includes('\\int') || text.includes('\\lim') || text.includes('\\begin{'));
+                    return hasLaTeX(q.question_text) || 
+                           (q.options && q.options.some((opt: string) => hasLaTeX(opt))) || 
+                           hasLaTeX(q.explanation) ||
+                           hasLaTeX(String(q.correct_answer));
+                  }) && (
+                    <span className="text-sm bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-800 dark:text-purple-300 px-3 py-1 rounded-full flex items-center gap-1">
+                      📐 LaTeX Enabled
+                    </span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {result.warnings?.length > 0 && (

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoadingSpinner } from '@/components/loading';
+import { SmartTextRenderer } from '@/components/latex-renderer';
 
 interface Question {
   id: string;
@@ -406,8 +407,11 @@ const CreateTestPage = () => {
                   {questions.map((question, index) => (
                     <div key={question.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div className="flex-1">
-                        <p className="font-medium">Q{index + 1}: {question.question_text.slice(0, 50)}...</p>
-                        <p className="text-xs text-muted-foreground">
+                        <div className="font-medium mb-1">Q{index + 1}:</div>
+                        <div className="text-sm text-gray-700 dark:text-gray-300 max-w-md">
+                          <SmartTextRenderer content={question.question_text.slice(0, 100) + (question.question_text.length > 100 ? '...' : '')} />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
                           {question.question_type} • {question.marks} marks • -{question.negative_marks} penalty
                         </p>
                       </div>

@@ -56,14 +56,14 @@ export async function parseQuestionsWithAI(input: string): Promise<ParseQuestion
 
 DATABASE SCHEMA:
 {
-  "question": "string (required) - The main question text",
+  "question": "string (required) - The main question text with LaTeX",
   "question_type": "MCQ|MSQ|NAT (required)",
   "options": ["array of strings or null"] - Required for MCQ/MSQ, null for NAT,
   "correct_answer": "string (required) - Answer text or option letter/number",
   "marks": "number (default 2)",
   "negative_marks": "number (default 0.5 for MCQ/MSQ, 0 for NAT)",
   "tag": "string or null - Subject/topic tag",
-  "explanation": "string or null - Detailed explanation",
+  "explanation": "string or null - Detailed explanation with LaTeX",
   "difficulty": "easy|medium|hard or null",
   "content_type": "text|html (default text)",
   "has_code": "boolean (true if question contains code)",
@@ -84,6 +84,15 @@ CRITICAL REQUIREMENTS:
 8. Generate explanations when possible
 9. Assess difficulty level when determinable
 10. If the input includes explicit numbering like "Question 3:" or "3)", populate a top-level numeric field "question_number" with that value for that question. This helps preserve original ordering.
+11. **LaTeX SUPPORT**: If the question contains mathematical expressions, formulas, or equations, format them using LaTeX syntax:
+    - Inline math: Use $formula$ for inline expressions (e.g., $x^2 + y^2 = z^2$)
+    - Display math: Use $$formula$$ for block expressions (e.g., $$\int_{a}^{b} f(x) dx$$)
+    - Common LaTeX commands: \frac{a}{b}, \sqrt{x}, \sum_{i=1}^{n}, \int, \lim, \alpha, \beta, \gamma, etc.
+    - Preserve existing LaTeX if present in input, or convert mathematical notation to proper LaTeX
+    - For matrices: Use \begin{bmatrix}...\end{bmatrix} or \begin{pmatrix}...\end{pmatrix}
+    - Convert symbols: ± → \pm, ∞ → \infty, ≤ → \leq, ≥ → \geq, ∈ → \in, etc.
+    - Convert function notation: sin(x) → \sin(x), cos(x) → \cos(x), log(x) → \log(x)
+12. **IMPORTANT**: Clean up malformed input - if options are incomplete or question text is truncated, try to fix intelligently
 
 RETURN ONLY VALID JSON ARRAY - NO MARKDOWN, NO EXPLANATIONS:
 

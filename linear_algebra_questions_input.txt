@@ -1,0 +1,174 @@
+1) The transpose of the product AB equals which of the following?
+A) Product in reverse order
+B) Product of transposes in the same order
+C) Product of transposes in reverse order
+D) Product in the same order
+Answer: C
+
+2) A matrix is orthogonal if its determinant equals what?
+A) 0
+B) ±1
+C) ±2
+D) None of these
+Answer: B
+
+3) Let A = [0, -tan(α/2); tan(α/2), 0]. Then [cos α, -sin α; sin α, cos α] is equal to which expression?
+A) (I+A)²
+B) (I-A)²
+C) I-A²
+D) (I+A)(I-A)^(-1)
+Answer: D
+
+4) For the system x+y+z=9, 2x+5y+7z=52, 2x+y-z=0, which statement is true?
+A) Unique solution
+B) Multiple solutions
+C) No solution
+D) Coefficient matrix is orthogonal
+Answer: A
+
+5) The inverse of the rotation matrix [cos θ, -sin θ, 0; sin θ, cos θ, 0; 0, 0, 1] is which matrix?
+A) [cos θ, sin θ, 0; -sin θ, cos θ, 0; 0, 0, 1]
+B) [cos(-θ), -sin(-θ), 0; sin(-θ), cos(-θ), 0; 0, 0, 1]
+C) The same matrix
+D) Cannot be determined
+Answer: B
+
+6) The rank of the matrix [8, 1, 3, 6; 0, 3, 2, 2; -8, -1, -3, 4] is:
+A) 1
+B) 2
+C) 3
+D) 4
+Answer: B
+
+7) If Δ₁ = |2, 2², 2³; 3, 3², 3³; 4, 4², 4³| and Δ = |1, 2, 4; 1, 3, 9; 1, 4, 16|, then Δ₁ equals:
+A) 2Δ
+B) 3Δ
+C) 4Δ
+D) 24Δ
+Answer: D
+
+8) Every square matrix can be represented as which of the following?
+A) Sum of lower and upper triangular matrices
+B) Sum of symmetric and skew-symmetric matrices
+C) Product of symmetric and skew-symmetric matrices
+D) Product of Hermitian and skew-Hermitian matrices
+Answer: B
+
+9) For the system 2x+6y+11=0, 6x+20y-6z+3=0, 6y-18z+1=0, which statement is true?
+A) Unique solution
+B) No solution
+C) Multiple solutions
+D) Coefficient matrix is idempotent
+Answer: B
+
+10) The rank of the matrix [1, -2, 3; -2, 4, -1; -1, 2, 7] is:
+A) 3
+B) 2
+C) 1
+D) 0
+Answer: B
+
+11) Which identity is correct?
+A) (AB)^(-1) = A^(-1)B^(-1)
+B) (AB)^T = A^T B^T
+C) (A^(-1))^(-1) = A^T
+D) adj(AB) = (adj B)(adj A)
+Answer: D
+
+12) If a square matrix A satisfies A² = A, then A is called:
+A) Idempotent
+B) Nilpotent
+C) Involutory
+D) None of the above
+Answer: A
+
+13) For a triangular matrix, the eigenvalues are equal to which entries?
+A) Row elements
+B) Column elements
+C) Principal diagonal elements
+D) Cannot be predicted
+Answer: C
+
+14) The rank of a matrix A is r if which condition holds?
+A) At least one r×r minor is nonzero
+B) Every (r+1)×(r+1) minor is zero
+C) Both (A) and (B)
+D) Only (B)
+Answer: C
+
+15) If A is m×n and B is ℓ×n, then the product AB is:
+A) m×n
+B) n×ℓ
+C) n×n
+D) Not possible
+Answer: D
+
+16) A system of linear equations is inconsistent if:
+A) It has no solution
+B) The solution is the zero vector
+C) There are infinitely many solutions
+D) The solution is complex-valued
+Answer: A
+
+17) If a matrix A is skew-symmetric, which properties are true? (i) square; (ii) a_ij = +a_ji; (iii) a_ij = -a_ji; (iv) all diagonal entries are zero
+A) (i), (ii), (iv)
+B) (iii) and (iv)
+C) (i), (iii), (iv)
+D) None of these
+Answer: C
+
+18) If a_ij = 1 for all i,j in an n×n matrix A, then rank(A) is:
+A) 1
+B) 0
+C) n
+D) Anything
+Answer: A
+
+19) If A and B are idempotent, then AB is also idempotent if:
+A) A = B^T
+B) A and B are nonsingular
+C) AB is symmetric
+D) AB = BA
+Answer: D
+
+20) The determinant of the upper triangular matrix A = [a, h, g, f; 0, b, c, e; 0, 0, d, k; 0, 0, 0, λ] equals:
+A) -abdλ
+B) abdλ
+C) abck - abde
+D) abdλ - abge
+Answer: B
+
+21) Let A = [1+i, 1, 2-3i; -2+i, 2i, 1+i; -3i, 0, 3+4i]. The conjugate matrix A̅ has entries:
+A) Real parts only
+B) Imaginary parts negated
+C) Both real and imaginary parts negated
+D) Complex conjugates of original entries
+Answer: D
+
+22) The value of the determinant |-3, 1, 1, 1; 1, -3, 1, 1; 1, 1, -3, 1; 1, 1, 1, -3| is:
+A) -1
+B) 1
+C) 0
+D) -64
+Answer: D
+
+23) The rank of the matrix [2, 3, -1, -1; 1, -1, -2, -4; 3, 1, 3, -2; 6, 3, 0, -7] is:
+A) 1
+B) 2
+C) 3
+D) 4
+Answer: C
+
+24) For the adjugate (adjoint) of A = [1, 2, 3; 0, 5, 0; 2, 4, 3], which method is used?
+A) Transpose of cofactor matrix
+B) Inverse times determinant
+C) Cofactor expansion
+D) All of the above
+Answer: A
+
+25) If A + B + C = π in a triangle, then sin²A + sin²B + sin²C - 2sinA sinB sinC equals:
+A) 0
+B) 1
+C) 2sinB tanA cosC
+D) 2
+Answer: D
