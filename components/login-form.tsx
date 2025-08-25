@@ -27,15 +27,15 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Optional: Listen for auth state changes for additional validation
+  // Listen for auth state changes
   useEffect(() => {
     const supabase = createClient();
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // This is now primarily for logging/debugging
         if (event === 'SIGNED_IN' && session) {
-          console.log('User signed in successfully');
+          // Redirect after successful sign in
+          router.push("/protected/dash");
         }
       }
     );
@@ -50,33 +50,30 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-      if (error) throw error;
+  if (error) throw error;
 
-      // Verify reg no (stored in user metadata as display_name)
-      const user = data?.user;
-      const storedReg = (user?.user_metadata as any)?.display_name;
-      const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
-      if (storedReg && normalize(storedReg) !== normalize(regNo)) {
-        // Reg no mismatch: sign the user out and show an error
-        await supabase.auth.signOut();
-        throw new Error("Registration number does not match our records");
-      }
+
+  // Verify reg no (stored in user metadata as display_name)
+  const user = data?.user;
+  const storedReg = (user?.user_metadata as any)?.display_name;
+  const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
+  if (storedReg && normalize(storedReg) !== normalize(regNo)) {
+    // Reg no mismatch: sign the user out and show an error
+    await supabase.auth.signOut();
+    throw new Error("Registration number does not match our records");
+  }
       
-      // Successful login - redirect immediately with a small delay to ensure auth state is updated
-      setTimeout(() => {
-        setIsLoading(false);
-        router.push("/protected/dash");
-      }, 100);
-      
+      // Don't use router.push here - let the auth state listener handle it
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
-      setIsLoading(false);
+      setIsLoading(false); // Only set loading to false on error
     }
+    // Don't set loading to false here - let the auth state change handle it
   };
 
   return (
