@@ -1,9 +1,9 @@
 import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
-import { CoolFooter } from "@/components/cool-footer";
+import { ConditionalFooter } from "@/components/conditional-footer";
+import { ConditionalBreadcrumbs } from "@/components/conditional-breadcrumbs";
 import { hasEnvVars } from "@/lib/utils";
 import { Logo } from "@/components/logo";
-import { Breadcrumbs } from "@/components/breadcrumbs";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
 
@@ -26,10 +26,10 @@ export default function ProtectedLayout({
           </div>
         </nav>
         <div className="flex-1 flex flex-col gap-[16px] w-full max-w-6xl p-5 pt-0">
-          <Breadcrumbs className="pl-1 pt-3.5" rootLabel="Dashboard" />
+          <ConditionalBreadcrumbs />
           {children}
         </div>
-        <CoolFooter />
+        <ConditionalFooter />
       </div>
     </main>
   );
