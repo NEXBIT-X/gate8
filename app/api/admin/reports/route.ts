@@ -1,7 +1,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { stripDomain } from '@/lib/utils';
+import { stripDomain, getUserFullName, getUserRegNo } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     // Get user details for the attempts — fetch via Admin API and map needed users
     const userIds = [...new Set(attempts.map(a => a.user_id))];
-    let userMap = new Map<string, { id: string; email: string | null; full_name: string }>();
+    let userMap = new Map<string, { id: string; email: string | null; full_name: string; reg_no: string; display_name: string }>();
     if (userIds.length > 0) {
       const { data: usersPage, error: usersError } = await serviceSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
       if (!usersPage || usersError) {
@@ -84,15 +84,17 @@ export async function GET(request: NextRequest) {
           .filter(u => userIds.includes(u.id))
           .forEach((u: any) => {
             const email = u.email as string | null;
-            const display =
-              u.user_metadata?.display_name ||
-              u.user_metadata?.full_name ||
-              u.user_metadata?.name ||
+            const fullName = getUserFullName(u.user_metadata);
+            const regNo = getUserRegNo(u.user_metadata);
+            const display = fullName || regNo || 
               (email ? stripDomain(email) : '');
+              
             userMap.set(u.id, {
               id: u.id,
               email,
-              full_name: display
+              full_name: fullName,
+              reg_no: regNo,
+              display_name: display
             });
           });
       }
@@ -120,7 +122,9 @@ export async function GET(request: NextRequest) {
     const reports = attempts.map(attempt => {
       const user = userMap.get(attempt.user_id) || {
         email: '',
-        full_name: ''
+        full_name: '',
+        reg_no: '',
+        display_name: ''
       };
       
       const attemptResponses = responses?.filter(r => r.attempt_id === attempt.id) || [];

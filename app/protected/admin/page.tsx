@@ -62,6 +62,16 @@ export default async function AdminDashboard() {
     );
   }
 
+  // Fetch user profile to get full name
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .single();
+
+  // Get display name for the admin
+  const adminDisplayName = profile?.full_name || stripDomain(user.email);
+
   let stats: AdminStats = {
     totalUsers: 0,
     totalTests: 0,
@@ -163,7 +173,7 @@ export default async function AdminDashboard() {
               </p>
             </div>
             <div className="text-sm text-muted-foreground">
-              Logged in as: <span className="font-medium">{stripDomain(user.email)}</span>
+              Logged in as: <span className="font-medium">{adminDisplayName}</span>
             </div>
           </div>
         </header>

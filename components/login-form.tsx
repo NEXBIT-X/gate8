@@ -58,14 +58,21 @@ export function LoginForm({
   if (error) throw error;
 
 
-  // Verify reg no (stored in user metadata as display_name)
+  // Verify reg no (stored in user metadata as display_name in format "Full Name,RegNo")
   const user = data?.user;
-  const storedReg = (user?.user_metadata as any)?.display_name;
-  const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
-  if (storedReg && normalize(storedReg) !== normalize(regNo)) {
-    // Reg no mismatch: sign the user out and show an error
-    await supabase.auth.signOut();
-    throw new Error("Registration number does not match our records");
+  const storedDisplayName = (user?.user_metadata as any)?.display_name;
+  
+  if (storedDisplayName) {
+    // Parse the display_name to extract reg no
+    const parts = storedDisplayName.split(',');
+    const storedRegNo = parts.length >= 2 ? parts[1].trim() : storedDisplayName.trim();
+    
+    const normalize = (s?: string) => (s || "").toString().trim().toLowerCase();
+    if (normalize(storedRegNo) !== normalize(regNo)) {
+      // Reg no mismatch: sign the user out and show an error
+      await supabase.auth.signOut();
+      throw new Error("Registration number does not match our records");
+    }
   }
       
       // Don't use router.push here - let the auth state listener handle it

@@ -1,8 +1,10 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { TestLoading } from '@/components/loading';
-import { useFullscreenManager } from '@/lib/fullscreen-manager';
+import { useTestSecurity } from '@/lib/test-security';
+import EnterFullscreenOverlay from '@/components/enter-fullscreen-overlay';
+import SecurityViolationOverlay from '@/components/security-violation-overlay';
 import { SmartTextRenderer } from '@/components/latex-renderer';
 import type { TestWithQuestions, UserTestAttempt, Question } from '@/lib/types';
 
@@ -25,79 +27,62 @@ const TestInterface = () => {
     const [loadingStage, setLoadingStage] = useState<'initializing' | 'loading-test' | 'loading-questions' | 'preparing-interface' | 'ready'>('initializing');
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [questionPanelOpen, setQuestionPanelOpen] = useState(true); // desktop always open
+    const [questionPanelOpen, setQuestionPanelOpen] = useState(true);
     const [visitedQuestions, setVisitedQuestions] = useState<Set<number>>(new Set());
     const [showMobilePalette, setShowMobilePalette] = useState(false);
-    // UI warnings removed per requirement — counting/persisting still occurs silently
 
-    // Fullscreen management
-    // We use a ref to hold the setter so the onExitAttempt callback (passed into the hook)
-    // can call it even though the setter is returned by the hook after invocation.
-    const setExitAttemptsRef = React.useRef<(count: number) => void>(() => {});
-    const [showExitWarning, setShowExitWarning] = useState(false);
-    const [showBlockedWarning, setShowBlockedWarning] = useState(false);
+    // Handle test completion
+    const handleCompleteTest = useCallback(async () => {
+        if (!attemptId || isSubmitting) return;
 
-    const { state: fullscreenState, enterFullscreen, exitFullscreen, resetExitAttempts, setExitAttempts } = useFullscreenManager(
-        3, // Max 3 exit attempts (allow 3 backs)
-        (attempts, maxAttempts) => {
-            // Show a transient warning to the user about the exit
-            setShowExitWarning(true);
-            // Hide after 3 seconds
-            window.setTimeout(() => setShowExitWarning(false), 3000);
+        setIsSubmitting(true);
+        try {
+            const response = await fetch('/api/tests/complete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ attemptId }),
+            });
 
-            // Persist exit attempt to server silently
-            (async () => {
-                try {
-                    if (attemptId) {
-                        const res = await fetch('/api/tests/record-exit', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ attemptId })
-                        });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to complete test');
+            }
 
-                        if (res.ok) {
-                            const json = await res.json().catch(() => ({}));
-                            const newCount = typeof json.exitAttempts === 'number' ? json.exitAttempts : attempts;
-                            try { setExitAttemptsRef.current(newCount); } catch (_) {}
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Failed to record exit attempt:', e);
-                }
-            })();
-        },
-        () => {
-            // When blocked (exceeded attempts), show blocking UI then auto-submit
-            setShowBlockedWarning(true);
-            // Auto-submit after brief delay to show the blocked message
-            setTimeout(async () => {
-                try {
-                    await handleCompleteTest();
-                } catch (e) {
-                    console.error('Auto-submit failed after fullscreen exits:', e);
-                }
-            }, 1500);
+            // Exit fullscreen and redirect to dashboard
+            try {
+                await exitFullscreen();
+            } catch (e) {
+                console.warn('Failed to exit fullscreen after submit:', e);
+            }
+            router.push('/protected/dash');
+        } catch (error) {
+            console.error('Error completing test:', error);
+            setError(error instanceof Error ? error.message : 'Failed to complete test');
+        } finally {
+            setIsSubmitting(false);
         }
-    );
+    }, [attemptId, isSubmitting, router]);
 
-    // Wire the returned setter into the ref so the onExitAttempt callback can call it
-    React.useEffect(() => {
-        if (setExitAttempts) setExitAttemptsRef.current = setExitAttempts;
-    }, [setExitAttempts]);
+    // Initialize security system
+    const {
+        state: securityState,
+        initializeTest,
+        enterFullscreen,
+        exitFullscreen,
+        handleViolationCancel,
+        handleViolationEndTest
+    } = useTestSecurity(handleCompleteTest);
 
-    // Auto-enter fullscreen when the test interface becomes ready
+    // Auto-show fullscreen overlay when test is ready
     useEffect(() => {
+        console.log('LoadingStage changed to:', loadingStage);
         if (loadingStage === 'ready') {
-            // Try to enter fullscreen silently
-            (async () => {
-                try {
-                    await enterFullscreen();
-                } catch (e) {
-                    // ignore
-                }
-            })();
+            console.log('Test is ready, initializing security system...');
+            initializeTest();
         }
-    }, [loadingStage, enterFullscreen]);
+    }, [loadingStage, initializeTest]);
 
     useEffect(() => {
         const loadTestData = async () => {
@@ -183,24 +168,6 @@ const TestInterface = () => {
                 setLoadingStage('ready');
                 await new Promise(resolve => setTimeout(resolve, 500)); // Show ready stage
                 
-                // Enter fullscreen when test is ready (no UI notice)
-                try {
-                    await enterFullscreen();
-                    console.log('Entered fullscreen mode for test');
-                } catch (fullscreenError) {
-                    console.warn('Could not enter fullscreen:', fullscreenError);
-                }
-                
-                // If the attempt has a persisted exit count, initialize the fullscreen manager with it
-                try {
-                    const attemptsCount = data.attempt?.answers?._exit_attempts;
-                    if (typeof attemptsCount === 'number' && setExitAttempts) {
-                        setExitAttempts(attemptsCount);
-                    }
-                } catch (e) {
-                    // ignore
-                }
-
                 setLoading(false);
             } catch (error) {
                 console.error('Error loading test:', error);
@@ -213,39 +180,6 @@ const TestInterface = () => {
             loadTestData();
         }
     }, [testId]);
-
-    const handleCompleteTest = useCallback(async () => {
-        if (!attemptId || isSubmitting) return;
-
-        setIsSubmitting(true);
-        try {
-            const response = await fetch('/api/tests/complete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ attemptId }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to complete test');
-            }
-
-                    // Exit fullscreen and redirect to dashboard instead of test results
-                    try {
-                        await exitFullscreen();
-                    } catch (e) {
-                        console.warn('Failed to exit fullscreen after submit:', e);
-                    }
-                    router.push('/protected/dash');
-        } catch (error) {
-            console.error('Error completing test:', error);
-            setError(error instanceof Error ? error.message : 'Failed to complete test');
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [attemptId, isSubmitting, router]);
 
     useEffect(() => {
         if (timeRemaining <= 0) return;
@@ -399,9 +333,10 @@ const TestInterface = () => {
                         value={option}
                         checked={selectedAnswers[question.id] === option}
                         onChange={(e) => handleAnswerSelect(question.id, e.target.value, 'MCQ')}
-                        className="mr-3 w-4 h-4 mt-1 flex-shrink-0"
+                        className="mr-3 w-4 h-4 mt-1 flex-shrink-0 select-auto"
+                        style={{userSelect: 'auto', WebkitUserSelect: 'auto', MozUserSelect: 'auto'} as React.CSSProperties}
                     />
-                    <div className="text-sm flex">
+                    <div className="text-sm flex select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
                         <span className="mr-2">{String.fromCharCode(65 + index)}.</span>
                         {renderQuestionText(option)}
                     </div>
@@ -415,7 +350,7 @@ const TestInterface = () => {
         
         return (
             <div className="space-y-4">
-                <p className="text-sm text-yellow-400 mb-2">
+                <p className="text-sm text-yellow-400 mb-2 select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
                     ⚠️ Multiple Select Question - Select all correct options
                 </p>
                 {question.options?.map((option, index) => (
@@ -437,9 +372,10 @@ const TestInterface = () => {
                                     : currentAnswers.filter((a: string) => a !== option);
                                 handleAnswerSelect(question.id, newAnswers, 'MSQ');
                             }}
-                            className="mr-3 w-4 h-4 mt-1 flex-shrink-0"
+                            className="mr-3 w-4 h-4 mt-1 flex-shrink-0 select-auto"
+                            style={{userSelect: 'auto', WebkitUserSelect: 'auto', MozUserSelect: 'auto'} as React.CSSProperties}
                         />
-                        <div className="text-sm flex">
+                        <div className="text-sm flex select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
                             <span className="mr-2">{String.fromCharCode(65 + index)}.</span>
                             {renderQuestionText(option)}
                         </div>
@@ -451,17 +387,18 @@ const TestInterface = () => {
 
     const renderNAT = (question: Question) => (
         <div className="space-y-4">
-            <p className="text-sm text-green-400 mb-2">
+            <p className="text-sm text-green-400 mb-2 select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
                 📝 Numerical Answer Type - Enter your answer as a number
             </p>
             <div className="flex items-center space-x-4">
-                <label className="text-sm font-medium">Answer:</label>
+                <label className="text-sm font-medium select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>Answer:</label>
                 <input
                     type="number"
                     step="any"
                     value={selectedAnswers[question.id] || ''}
                     onChange={(e) => handleAnswerSelect(question.id, e.target.value, 'NAT')}
-                    className="px-3 py-2 bg-gray-800 border border-gray-600 rounded focus:border-blue-500 focus:outline-none w-32"
+                    className="px-3 py-2 bg-gray-800 border border-gray-600 rounded focus:border-blue-500 focus:outline-none w-32 select-auto"
+                    style={{userSelect: 'auto', WebkitUserSelect: 'auto', MozUserSelect: 'auto'} as React.CSSProperties}
                     placeholder="Enter number"
                 />
             </div>
@@ -552,40 +489,19 @@ const TestInterface = () => {
 
     return (
         <>
-            {/* Fullscreen Exit Warning */}
-            {showExitWarning && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center">
-                    <div className="bg-yellow-500 text-black p-6 rounded-lg max-w-md mx-4 text-center">
-                        <div className="text-2xl mb-2">⚠️ Fullscreen Exit</div>
-                        <p className="mb-2">You've exited fullscreen. Please return to fullscreen to continue the test.</p>
-                        <p className="text-sm">Exits used: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}</p>
-                    </div>
-                </div>
-            )}
+            {/* Enter Fullscreen Overlay */}
+            <EnterFullscreenOverlay
+                isOpen={securityState.showEnterFullscreenOverlay}
+                onEnterFullscreen={enterFullscreen}
+                testTitle={test?.title || "Test"}
+            />
 
-            {/* Test Blocked Warning */}
-            {showBlockedWarning && (
-                <div className="fixed inset-0 z-50 bg-red-900/90 backdrop-blur-sm flex items-center justify-center">
-                    <div className="bg-red-700 text-white p-8 rounded-lg max-w-lg mx-4 text-center">
-                        <div className="text-3xl mb-4">🚫 Test Blocked</div>
-                        <h3 className="text-xl font-bold mb-4">Too Many Fullscreen Exits</h3>
-                        <p className="mb-4">
-                            You have exceeded the maximum allowed fullscreen exit attempts ({fullscreenState.maxExitAttempts}).
-                        </p>
-                        <p className="mb-6 text-red-200">
-                            Your test will be automatically submitted for security reasons.
-                        </p>
-                    </div>
-                </div>
-            )}
-            {/* Small persistent badge while in fullscreen (no warnings) */}
-            {fullscreenState.isFullscreen && (
-                <div className="fixed top-4 right-4 z-40">
-                    <div className="bg-black/60 text-white px-3 py-1 rounded-full text-xs shadow">
-                        Backs left: {Math.max(0, fullscreenState.maxExitAttempts - fullscreenState.exitAttempts)}/{fullscreenState.maxExitAttempts}
-                    </div>
-                </div>
-            )}
+            {/* Security Violation Overlay */}
+            <SecurityViolationOverlay
+                isOpen={securityState.showViolationOverlay}
+                onCancel={handleViolationCancel}
+                onEndTest={handleViolationEndTest}
+            />
 
             <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row">
             {/* Main Panel */}
@@ -610,30 +526,27 @@ const TestInterface = () => {
                         </div>
                         <div className="flex items-center gap-2 text-[11px]">
                             {/* Fullscreen Status Indicator */}
-                            <div className={`w-2 h-2 rounded-full ${fullscreenState.isFullscreen ? 'bg-green-500' : 'bg-red-500'}`} 
-                                 title={fullscreenState.isFullscreen ? 'Fullscreen Active' : 'Fullscreen Inactive'}></div>
+                            <div className={`w-2 h-2 rounded-full ${securityState.isFullscreen ? 'bg-green-500' : 'bg-red-500'}`} 
+                                 title={securityState.isFullscreen ? 'Fullscreen Active' : 'Fullscreen Inactive'}></div>
                             <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center font-semibold">U</div>
                             <div className="hidden sm:block text-right leading-tight">
                                 <div className="font-medium">Candidate</div>
                                 <div className="text-gray-400">Practice</div>
-                                {fullscreenState.exitAttempts > 0 && (
-                                    <div className="text-red-400 text-[9px]">
-                                        Exits: {fullscreenState.exitAttempts}/{fullscreenState.maxExitAttempts}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Question Body */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 select-none">
                     <div className="max-w-none">
-                        <h2 className="font-semibold mb-4 text-sm">Question No. {currentQuestionIndex + 1}</h2>
-                        <div className="mb-6 text-sm leading-relaxed">
+                        <h2 className="font-semibold mb-4 text-sm select-none">Question No. {currentQuestionIndex + 1}</h2>
+                        <div className="mb-6 text-sm leading-relaxed select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
                             {renderQuestionText(currentQuestion.question)}
                         </div>
-                        {renderQuestion(currentQuestion)}
+                        <div className="select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
+                            {renderQuestion(currentQuestion)}
+                        </div>
                     </div>
                 </div>
 

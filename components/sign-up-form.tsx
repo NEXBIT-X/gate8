@@ -21,6 +21,7 @@ export function SignUpForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [regNo, setRegNo] = useState("");
@@ -40,6 +41,18 @@ export function SignUpForm({
       return;
     }
 
+    if (!fullName.trim()) {
+      setError("Full name is required");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!regNo.trim()) {
+      setError("Registration number is required");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -47,8 +60,10 @@ export function SignUpForm({
         options: {
           emailRedirectTo: `${window.location.origin}/protected/dash`,
           data: {
-            // store reg no as display_name so we can validate on login and show it in UI
-            display_name: regNo,
+            // Store both full name and reg no in comma-separated format: "Full Name,RegNo"
+            display_name: `${fullName.trim()},${regNo.trim()}`,
+            full_name: fullName.trim(),
+            reg_no: regNo.trim(),
           },
         },
       });
@@ -72,14 +87,14 @@ export function SignUpForm({
           <form onSubmit={handleSignUp}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="fullname">Full Name</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
+                  id="fullname"
+                  type="text"
+                  placeholder="Enter your full name"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                 />
               </div>
               <div className="grid gap-2">
@@ -93,6 +108,18 @@ export function SignUpForm({
                   onChange={(e) => setRegNo(e.target.value)}
                 />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="m@example.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              
               <div className="grid gap-2">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>

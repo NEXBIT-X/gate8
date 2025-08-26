@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Clock from './widgets/clock';
 import { DatabaseLoading, LoadingSpinner } from '@/components/loading';
 import TestInstructionsModal from '@/components/test-instructions-modal';
+import { createClient } from '@/lib/supabase/client';
+import { getUserFullName, stripDomain } from '@/lib/utils';
 import type { Test, TestWithAttempt, UserTestAttempt } from '@/lib/types';
 
 interface StartTestResponse {
@@ -151,6 +153,7 @@ const Dash = () => {
     const [showInstructionsModal, setShowInstructionsModal] = useState(false);
     const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
     const [selectedTestName, setSelectedTestName] = useState<string>('');
+    const [userDisplayName, setUserDisplayName] = useState<string>('');
     const router = useRouter();
 
     const handleViewResult = (attemptId: string) => {
@@ -174,26 +177,6 @@ const Dash = () => {
             console.log('Starting test with ID:', testId);
             setError(null); // Clear any previous errors
             setStartingTestId(testId); // Show loading for specific test
-            
-            // Enter fullscreen before starting the test
-            try {
-                // Check if fullscreen is supported and document is not already in fullscreen
-                if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
-                    console.log('Requesting fullscreen...');
-                    await document.documentElement.requestFullscreen();
-                    console.log('Entered fullscreen mode for test');
-                } else if (document.fullscreenElement) {
-                    console.log('Already in fullscreen mode');
-                } else {
-                    console.warn('Fullscreen not supported');
-                }
-            } catch (fullscreenError) {
-                console.warn('Could not enter fullscreen:', fullscreenError);
-                // Don't block test start if fullscreen fails - just log the error
-                if (fullscreenError instanceof Error) {
-                    console.warn('Fullscreen error details:', fullscreenError.message);
-                }
-            }
             
             const response = await fetch('/api/tests/start', {
                 method: 'POST',
@@ -284,13 +267,31 @@ const Dash = () => {
         let cancelled = false;
         (async () => {
             try {
-                // Fetch tests and user attempts in parallel
-                const [testsRes, attemptsRes] = await Promise.all([
+                // Get user data first
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                
+                // Fetch user profile, tests and user attempts in parallel
+                const [profileRes, testsRes, attemptsRes] = await Promise.all([
+                    user ? supabase.from('profiles').select('full_name').eq('id', user.id).single() : Promise.resolve({ data: null }),
                     fetch('/api/tests', { cache: 'no-store' }),
                     fetch('/api/user/attempts', { cache: 'no-store' })
                 ]);
                 
                 if (!testsRes.ok) throw new Error(`Tests: ${testsRes.statusText}`);
+                
+                // Set user display name
+                if (user && !cancelled) {
+                    let displayName = '';
+                    if (profileRes.data?.full_name) {
+                        displayName = profileRes.data.full_name;
+                    } else {
+                        // Fallback to user metadata
+                        const metadataName = getUserFullName(user.user_metadata);
+                        displayName = metadataName || stripDomain(user.email);
+                    }
+                    setUserDisplayName(displayName);
+                }
                 
                 const testsData: Test[] = await testsRes.json();
                 let attemptsData: UserAttempt[] = [];
@@ -392,7 +393,9 @@ const Dash = () => {
             <div className="w-full max-w-6xl mx-auto p-6 space-y-8">
                 <header className="flex items-start justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold">Student Dashboard</h1>
+                        <h1 className="text-2xl font-bold">
+                            {userDisplayName ? `Welcome back, ${userDisplayName}!` : 'Student Dashboard'}
+                        </h1>
                         <p className="text-sm">Overview of your tests</p>
                     </div>
                 </header>

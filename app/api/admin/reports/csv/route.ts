@@ -1,7 +1,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { stripDomain } from '@/lib/utils';
+import { stripDomain, getUserFullName, getUserRegNo } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!attempts || attempts.length === 0) {
-      const csvContent = 'Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At\n';
+      const csvContent = 'Student Name,Registration Number,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At\n';
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv',
@@ -74,11 +74,14 @@ export async function GET(request: NextRequest) {
     const userMap = new Map();
     if (users?.users) {
       users.users.forEach(user => {
+        const fullName = getUserFullName(user.user_metadata);
+        const regNo = getUserRegNo(user.user_metadata);
+        
         userMap.set(user.id, {
           id: user.id,
           email: user.email,
-          // Prefer display_name (reg no) first
-          full_name: user.user_metadata?.display_name || user.user_metadata?.full_name || user.user_metadata?.name
+          full_name: fullName,
+          reg_no: regNo
         });
       });
     }
@@ -102,7 +105,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Process the data
-  const csvRows = ['Student Name,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At'];
+  const csvRows = ['Student Name,Registration Number,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At'];
 
     attempts.forEach(attempt => {
       const user = userMap.get(attempt.user_id) || { 
@@ -152,7 +155,8 @@ export async function GET(request: NextRequest) {
       };
 
       const row = [
-        escapeCsvValue(user.full_name || stripDomain(user.email) || ''),
+        escapeCsvValue(user.full_name || ''),
+        escapeCsvValue(user.reg_no || ''),
         escapeCsvValue(user.email || ''),
         escapeCsvValue(attempt.tests?.title || 'Unknown Test'),
         totalScore,
