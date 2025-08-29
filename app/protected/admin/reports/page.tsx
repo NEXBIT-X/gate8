@@ -6,7 +6,7 @@ import ReportDetailsModal from '@/components/report-details-modal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, TrendingUp, Users, Target, BookOpen, BarChart3 } from 'lucide-react';
+import { Download, TrendingUp, Users, Target, BookOpen, BarChart3, Filter, RefreshCw } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -91,6 +91,7 @@ const ViewReportsPage = () => {
   const [tests, setTests] = useState<Array<{ id: string; title: string }>>([]);
   const [downloadingCSV, setDownloadingCSV] = useState(false);
   const [page, setPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const PAGE_SIZE = 50;
 
   // Chart configuration with neutral colors
@@ -155,7 +156,7 @@ const ViewReportsPage = () => {
         const testsResponse = await fetch('/api/tests');
         if (testsResponse.ok) {
           const testsData = await testsResponse.json();
-          setTests(testsData.tests || []);
+          setTests(testsData || []);
         }
 
         const analyticsResponse = await fetch(`/api/admin/reports${selectedTest !== 'all' ? `?testId=${selectedTest}` : ''}`);
@@ -176,6 +177,31 @@ const ViewReportsPage = () => {
 
     fetchData();
   }, [selectedTest]);
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const testsResponse = await fetch('/api/tests');
+      if (testsResponse.ok) {
+        const testsData = await testsResponse.json();
+        setTests(testsData || []);
+      }
+    } catch (error) {
+      console.error('Error refreshing tests:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Auto-refresh tests every 30 seconds (optional)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleRefresh();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Prepare data for performance distribution chart
   const getPerformanceDistributionData = () => {
@@ -339,6 +365,12 @@ const ViewReportsPage = () => {
           <div>
             <h1 className="text-3xl font-bold mb-2">Student Analytics & Reports</h1>
             <p className="text-gray-400">Comprehensive performance analysis and data insights</p>
+            {selectedTest !== 'all' && (
+              <div className="mt-2 flex items-center text-sm text-blue-400 bg-blue-900/20 px-3 py-1 rounded-lg w-fit">
+                <Filter className="w-4 h-4 mr-2" />
+                Showing data for: {tests.find(t => t.id === selectedTest)?.title || 'Selected Test'}
+              </div>
+            )}
           </div>
           <div className="flex gap-4 items-center">
             <select
@@ -348,10 +380,22 @@ const ViewReportsPage = () => {
               aria-label="Select test to filter reports"
             >
               <option value="all">All Tests</option>
-              {tests.map(test => (
-                <option key={test.id} value={test.id}>{test.title}</option>
-              ))}
+              {tests.length === 0 ? (
+                <option disabled>No tests available</option>
+              ) : (
+                tests.map(test => (
+                  <option key={test.id} value={test.id}>{test.title}</option>
+                ))
+              )}
             </select>
+            <Button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="bg-blue-600 hover:bg-blue-700 text-white border-blue-500"
+              title="Refresh test list"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
             <Button
               onClick={handleDownloadCSV}
               disabled={downloadingCSV}
@@ -433,7 +477,9 @@ const ViewReportsPage = () => {
                 <BarChart3 className="w-5 h-5 mr-2 text-neutral-400" />
                 Performance Distribution
               </CardTitle>
-              <CardDescription>Score distribution across all students</CardDescription>
+              <CardDescription>
+                Score distribution across {selectedTest === 'all' ? 'all students' : 'students for selected test'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -454,7 +500,9 @@ const ViewReportsPage = () => {
                 <Target className="w-5 h-5 mr-2 text-neutral-400" />
                 Time Distribution
               </CardTitle>
-              <CardDescription>Time taken distribution across attempts</CardDescription>
+              <CardDescription>
+                Time taken distribution across {selectedTest === 'all' ? 'all attempts' : 'attempts for selected test'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -469,8 +517,8 @@ const ViewReportsPage = () => {
           </Card>
         </div>
 
-        {/* Test-wise Performance Chart */}
-        {analyticsData.reports.length > 0 && (
+        {/* Test-wise Performance Chart - Only show when viewing all tests */}
+        {analyticsData.reports.length > 0 && selectedTest === 'all' && (
           <Card className="bg-card border-border mb-8">
             <CardHeader>
               <CardTitle className=" flex items-center">
@@ -500,7 +548,9 @@ const ViewReportsPage = () => {
                 <BookOpen className="w-5 h-5 mr-2" />
                 Subject-wise Performance
               </CardTitle>
-              <CardDescription>Average scores and performance by subject</CardDescription>
+              <CardDescription>
+                Average scores and performance by subject {selectedTest === 'all' ? 'across all tests' : 'for selected test'}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -532,7 +582,9 @@ const ViewReportsPage = () => {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-white">Individual Student Reports</CardTitle>
-            <CardDescription>Detailed performance data for each student</CardDescription>
+            <CardDescription>
+              Detailed performance data for {selectedTest === 'all' ? 'all students across all tests' : 'students on selected test'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
