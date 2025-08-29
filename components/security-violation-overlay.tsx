@@ -39,7 +39,7 @@ const SecurityViolationOverlay: React.FC<SecurityViolationOverlayProps> = ({
 
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
               <p className="text-red-800 dark:text-red-200 font-medium mb-2">
-                If proceeded, test will be ended
+                No of times exiting fullscreen is being monitored and informed!
               </p>
               <p className="text-sm text-red-700 dark:text-red-300">
                 Your current answers will be submitted and you cannot retake this test.

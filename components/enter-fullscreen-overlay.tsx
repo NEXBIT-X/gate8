@@ -25,7 +25,7 @@ const EnterFullscreenOverlay: React.FC<EnterFullscreenOverlayProps> = ({
         {/* Header */}
         <div className="bg-blue-600 text-white p-6 rounded-t-lg text-center">
           <div className="text-4xl mb-2">🖥️</div>
-          <h2 className="text-xl font-bold">Enter Fullscreen Mode</h2>
+          <h2 className="text-xl font-bold">Enter Fullscreen </h2>
         </div>
 
         {/* Content */}
@@ -37,7 +37,7 @@ const EnterFullscreenOverlay: React.FC<EnterFullscreenOverlayProps> = ({
             
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
               <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                ⚠️ Important Security Notice
+                ⚠️ Important Notice
               </p>
               <p className="text-sm text-yellow-700 dark:text-yellow-300">
                 If you exit fullscreen mode during the test, you will be prompted to either continue or end the test. Ending the test will submit your current answers.
