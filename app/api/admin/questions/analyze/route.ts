@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
     const allowedEmails = [
       "abhijeethvn2006@gmail.com", 
       "pavan03062006@gmail.com",
-      "abhijeethvn@gmail.com",
-      "examapp109@gmail.com"
+       "devash217@gmail.com",
+      "b.lakshminarayanan2007@gmail.com"
     ];
     
     if (!user?.email || !allowedEmails.includes(user.email)) {
