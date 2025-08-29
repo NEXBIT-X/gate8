@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { unshuffleAnswers, evaluateShuffledAnswers, type UserAnswer } from '@/lib/utils/answerEvaluation';
 import type { ShuffleConfig } from '@/lib/utils/shuffle';
+import { validateLaTeX } from '@/lib/utils/latex';
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,6 +71,30 @@ export async function POST(request: NextRequest) {
     // Evaluate the unshuffled answer against the original question
     let isCorrect = false;
     let marksObtained = 0;
+
+    // Server-side LaTeX validation for text answers (for NAT we still ensure numeric, for others validate string fields)
+    try {
+      // Only validate string answers (MCQ/MSQ options and free-text answers)
+      if (typeof unshuffled.original_answer === 'string') {
+        const val = validateLaTeX(unshuffled.original_answer);
+        if (!val.valid) {
+          return NextResponse.json({ error: 'Invalid LaTeX in submitted answer', details: val.errors }, { status: 400 });
+        }
+      }
+      if (Array.isArray(unshuffled.original_answer)) {
+        for (const ansPart of unshuffled.original_answer) {
+          if (typeof ansPart === 'string') {
+            const val = validateLaTeX(ansPart);
+            if (!val.valid) {
+              return NextResponse.json({ error: 'Invalid LaTeX in submitted answer', details: val.errors }, { status: 400 });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('LaTeX validation failed:', e);
+      return NextResponse.json({ error: 'Invalid LaTeX in submitted answer' }, { status: 400 });
+    }
 
     switch (question.question_type) {
       case 'MCQ':

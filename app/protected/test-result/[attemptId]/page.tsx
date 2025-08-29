@@ -291,7 +291,10 @@ const TestResultPage = () => {
                                                             : 'bg-gray-100 dark:bg-neutral-800 text-gray-800 dark:text-gray-300'
                                                     }`}
                                                 >
-                                                    <span className="font-medium">{String.fromCharCode(65 + optIndex)}.</span> {option}
+                                                    <span className="font-medium mr-2">{String.fromCharCode(65 + optIndex)}.</span>
+                                                    <span className="inline-block align-middle">
+                                                        <SmartTextRenderer content={option} />
+                                                    </span>
                                                     {option === response.question.correct_answer && (
                                                         <span className="ml-2 text-xs text-green-700 dark:text-green-400">✓ Correct</span>
                                                     )}
@@ -309,7 +312,9 @@ const TestResultPage = () => {
                                                 ? 'text-gray-500 dark:text-gray-500' 
                                                 : 'text-amber-800 dark:text-red-400'
                                         }>
-                                            {response.user_answer || (response.unanswered ? 'Not attempted' : 'No answer')}
+                                            {response.user_answer ? (
+                                                <SmartTextRenderer content={String(response.user_answer)} />
+                                            ) : (response.unanswered ? 'Not attempted' : 'No answer')}
                                         </span>
                                     </div>
                                     
@@ -317,7 +322,17 @@ const TestResultPage = () => {
                                     {(response.unanswered || !response.is_correct) && (
                                         <div>
                                             <span className="text-gray-700 dark:text-gray-400">Correct answer: </span>
-                                            <span className="text-green-600 dark:text-green-400">{response.question.correct_answer}</span>
+                                            <span className="text-green-600 dark:text-green-400">
+                                                {Array.isArray(response.question.correct_answer) ? (
+                                                    response.question.correct_answer.map((ans: any, i: number) => (
+                                                        <span key={i} className="inline-block mr-1">
+                                                            <SmartTextRenderer content={String(ans)} />
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <SmartTextRenderer content={String(response.question.correct_answer)} />
+                                                )}
+                                            </span>
                                         </div>
                                     )}
                                     

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/admin';
 import { NextRequest, NextResponse } from 'next/server';
+import { validateLaTeX } from '@/lib/utils/latex';
 
 export async function POST(request: NextRequest) {
   try {
@@ -101,6 +102,18 @@ export async function POST(request: NextRequest) {
           throw new Error(`Question ${index + 1}: ${q.question_type} requires options`);
         }
         options = q.options;
+      }
+      // Server-side LaTeX validation for question text, options and explanation (if present)
+      const fieldsToCheck = [q.question_text, ...(options || [])];
+      // Check explanation/correct_answer text if it's a string
+      if (q.correct_answer && typeof q.correct_answer === 'string') fieldsToCheck.push(q.correct_answer);
+
+      for (const field of fieldsToCheck) {
+        const res = validateLaTeX(field);
+        if (!res.valid) {
+          // throw to be caught and returned as 400
+          throw new Error(`Question ${index + 1}: Invalid LaTeX detected: ${res.errors.join('; ')}`);
+        }
       }
       return {
         test_id: testId,
