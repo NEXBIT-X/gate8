@@ -68,14 +68,50 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user details for the attempts
-    const { data: users, error: usersError } = await serviceSupabase.auth.admin.listUsers();
+    const { data: users, error: usersError } = await serviceSupabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000  // Increase limit to get more users
+    });
+    
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+    }
+    
+    // Also get profiles data from the database (only full_name exists)
+    const userIds = attempts.map(a => a.user_id);
+    const { data: profiles, error: profilesError } = await serviceSupabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', userIds);
+    
+    if (profilesError) {
+      console.error('Error fetching profiles:', profilesError);
+    }
+    
+    // Create a map of profile data
+    const profileMap = new Map();
+    if (profiles) {
+      profiles.forEach(profile => {
+        profileMap.set(profile.id, profile);
+      });
+    }
     
     // Create a map of user data
     const userMap = new Map();
     if (users?.users) {
       users.users.forEach(user => {
-        const fullName = getUserFullName(user.user_metadata);
-        const regNo = getUserRegNo(user.user_metadata);
+        const profile = profileMap.get(user.id);
+        
+        // Get name from profile first, then user metadata, then email
+        let fullName = '';
+        if (profile?.full_name) {
+          fullName = profile.full_name;
+        } else {
+          fullName = getUserFullName(user.user_metadata);
+        }
+        
+        // Get reg no from user metadata only (profiles table doesn't have reg_no)
+        let regNo = getUserRegNo(user.user_metadata);
         
         userMap.set(user.id, {
           id: user.id,
@@ -108,9 +144,27 @@ export async function GET(request: NextRequest) {
   const csvRows = ['Student Name,Registration Number,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At'];
 
     attempts.forEach(attempt => {
-      const user = userMap.get(attempt.user_id) || { 
-        email: '', 
-        full_name: '' 
+      const user = userMap.get(attempt.user_id);
+      
+      // Handle missing users gracefully
+      if (!user) {
+        console.warn(`User not found for attempt ${attempt.id}, user_id: ${attempt.user_id}`);
+        
+        // Try to get data from profiles table as backup
+        const profile = profileMap.get(attempt.user_id);
+        const fallbackUser = {
+          email: `deleted-user-${attempt.user_id.slice(0, 8)}@unknown.com`,
+          full_name: profile?.full_name || `Deleted User ${attempt.user_id.slice(0, 8)}`,
+          reg_no: 'N/A'
+        };
+        
+        userMap.set(attempt.user_id, fallbackUser);
+      }
+      
+      const finalUser = userMap.get(attempt.user_id) || {
+        email: 'unknown@example.com', 
+        full_name: `User ${attempt.user_id.slice(0, 8)}`,
+        reg_no: 'N/A'
       };
       
       const attemptResponses = responses?.filter(r => r.attempt_id === attempt.id) || [];
@@ -154,23 +208,25 @@ export async function GET(request: NextRequest) {
         return str;
       };
 
-      const row = [
-        escapeCsvValue(user.full_name || ''),
-        escapeCsvValue(user.reg_no || ''),
-        escapeCsvValue(user.email || ''),
-        escapeCsvValue(attempt.tests?.title || 'Unknown Test'),
-        totalScore,
-        totalPossibleMarks,
-        percentage.toFixed(2),
-        questionsAttempted,
-        totalQuestions,
-        correctAnswers,
-        incorrectAnswers,
-        unansweredQuestions,
-        timeTakenMinutes,
-        escapeCsvValue(perQuestionTimeText),
-        new Date(attempt.submitted_at || attempt.started_at).toLocaleString()
-      ].join(',');
+      // Determine display name with same logic as the reports page
+      const displayName = finalUser.full_name || (finalUser.email ? stripDomain(finalUser.email) : 'Unknown User');
+      const regNumber = finalUser.reg_no || 'N/A';        const row = [
+          escapeCsvValue(displayName),
+          escapeCsvValue(regNumber),
+          escapeCsvValue(finalUser.email || ''),
+          escapeCsvValue(attempt.tests?.title || 'Unknown Test'),
+          totalScore,
+          totalPossibleMarks,
+          percentage.toFixed(2),
+          questionsAttempted,
+          totalQuestions,
+          correctAnswers,
+          incorrectAnswers,
+          unansweredQuestions,
+          timeTakenMinutes,
+          escapeCsvValue(perQuestionTimeText),
+          new Date(attempt.submitted_at || attempt.started_at).toLocaleString()
+        ].join(',');
 
       csvRows.push(row);
     });
