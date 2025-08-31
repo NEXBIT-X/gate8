@@ -3,7 +3,7 @@ import { AuthButton } from "@/components/auth-button";
 import { ConditionalFooter } from "@/components/conditional-footer";
 import { ConditionalBreadcrumbs } from "@/components/conditional-breadcrumbs";
 import { hasEnvVars } from "@/lib/utils";
-import { Logo } from "@/components/logo";
+import { ConditionalLogo } from "../../components/conditional-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
 
@@ -19,7 +19,7 @@ export default function ProtectedLayout({
           <div className="w-full max-w-6xl flex flex-col gap-1 p-5 px-7">
             <div className="flex justify-between items-center text-sm">
               <div className="flex gap-5 items-center font-semibold">
-                <Logo />
+                <ConditionalLogo />
               </div>
               {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
             </div>
