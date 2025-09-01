@@ -58,7 +58,7 @@ interface StudentReport {
     id: string;
     question_id: number;
     question_type?: string | null;
-    user_answer?: any;
+  user_answer?: unknown;
     is_correct?: boolean;
     marks_obtained?: number;
     time_spent_seconds?: number;
@@ -82,7 +82,8 @@ interface AnalyticsData {
 
 const ViewReportsPage = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [expandedAttempt, setExpandedAttempt] = useState<string | null>(null);
+  // expandedAttempt removed (unused)
+  const [query, setQuery] = useState<string>('');
   const [selectedReports, setSelectedReports] = useState<StudentReport[] | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -204,7 +205,7 @@ const ViewReportsPage = () => {
   }, []);
 
   // Prepare data for performance distribution chart
-  const getPerformanceDistributionData = () => {
+  const getPerformanceDistributionData = React.useCallback(() => {
     if (!analyticsData?.reports.length) return null;
 
     const ranges = ['0-30%', '31-50%', '51-70%', '71-85%', '86-100%'];
@@ -232,10 +233,10 @@ const ViewReportsPage = () => {
         },
       ],
     };
-  };
+  }, [analyticsData]);
 
   // Prepare data for test-wise performance chart
-  const getTestWisePerformanceData = () => {
+  const getTestWisePerformanceData = React.useCallback(() => {
     if (!analyticsData?.reports.length) return null;
 
     const testPerformance = analyticsData.reports.reduce((acc, report) => {
@@ -269,10 +270,10 @@ const ViewReportsPage = () => {
         },
       ],
     };
-  };
+  }, [analyticsData]);
 
   // Prepare data for time distribution chart
-  const getTimeDistributionData = () => {
+  const getTimeDistributionData = React.useCallback(() => {
     if (!analyticsData?.reports.length) return null;
 
     const timeRanges = ['0-15 min', '16-30 min', '31-60 min', '61-90 min', '90+ min'];
@@ -300,14 +301,19 @@ const ViewReportsPage = () => {
         },
       ],
     };
-  };
+  }, [analyticsData]);
 
   // Memoize chart data to avoid recomputation
-  const memoPerformanceData = React.useMemo(() => getPerformanceDistributionData(), [analyticsData]);
-  const memoTestWiseData = React.useMemo(() => getTestWisePerformanceData(), [analyticsData]);
-  const memoTimeData = React.useMemo(() => getTimeDistributionData(), [analyticsData]);
-
-  const pagedReports = analyticsData?.reports.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) || [];
+  const memoPerformanceData = React.useMemo(() => getPerformanceDistributionData(), [getPerformanceDistributionData]);
+  const memoTestWiseData = React.useMemo(() => getTestWisePerformanceData(), [getTestWisePerformanceData]);
+  const memoTimeData = React.useMemo(() => getTimeDistributionData(), [getTimeDistributionData]);
+  // Filter reports client-side for quick searching by name, email or test title
+  const filteredReports = (analyticsData?.reports || []).filter(r => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (r.full_name || r.email || r.test_title || '').toLowerCase().includes(q);
+  });
+  const pagedFilteredReports = filteredReports.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleDownloadCSV = async () => {
     try {
@@ -400,6 +406,7 @@ const ViewReportsPage = () => {
               onClick={handleDownloadCSV}
               disabled={downloadingCSV}
               className="bg-neutral-700 hover:bg-neutral-600 text-white border-neutral-600"
+              title="Download CSV for current filter"
             >
               <Download className="w-4 h-4 mr-2" />
               {downloadingCSV ? 'Downloading...' : 'Download CSV'}
@@ -579,6 +586,7 @@ const ViewReportsPage = () => {
         )}
 
         {/* Individual Student Reports */}
+        {selectedTest !== 'all' && (
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-white">Individual Student Reports</CardTitle>
@@ -587,6 +595,16 @@ const ViewReportsPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="flex items-center justify-between mb-4">
+              <input
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                placeholder="Search student, email or test..."
+                className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-2 text-white w-72"
+                aria-label="Search reports"
+              />
+              <div className="text-sm text-gray-400">Showing {filteredReports.length} results</div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -595,40 +613,36 @@ const ViewReportsPage = () => {
                     <th className="text-left p-3 text-gray-400">Test</th>
                     <th className="text-left p-3 text-gray-400">Score</th>
                     <th className="text-left p-3 text-gray-400">Percentage</th>
-                    <th className="text-left p-3 text-gray-400">Attempted</th>
                     <th className="text-left p-3 text-gray-400">Correct</th>
                     <th className="text-left p-3 text-gray-400">Time</th>
                     <th className="text-left p-3 text-gray-400">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedReports.map((report) => (
+                  {pagedFilteredReports.map((report) => (
                     <React.Fragment key={report.attempt_id}>
-                      <tr className="border-b border-gray-800 ">
+                      <tr className="border-b border-gray-800 hover:bg-gray-900 transition-colors">
                       <td className="p-3">
                         <div>
-                          <div className=" font-medium cursor-pointer text-blue-400 hover:underline" onClick={() => { setSelectedReports(analyticsData.reports.filter(r => r.id === report.id)); setShowReportModal(true); }}>
+                          <div className="font-medium cursor-pointer text-blue-400 hover:underline truncate max-w-xs" onClick={() => { setSelectedReports(analyticsData.reports.filter(r => r.id === report.id)); setShowReportModal(true); }}>
                             {report.full_name || stripDomain(report.email)}
                           </div>
-                          <div className="text-gray-400 text-xs">{stripDomain(report.email)}</div>
+                          <div className="text-gray-400 text-xs truncate max-w-xs">{stripDomain(report.email)}</div>
                         </div>
                       </td>
-                      <td className="p-3 text-gray-300">{report.test_title}</td>
+                      <td className="p-3 text-gray-300 truncate max-w-xs">{report.test_title}</td>
                       <td className="p-3">
-                        <span className=" font-medium">
+                        <span className="font-medium">
                           {parseFloat(String(report.total_score)).toFixed(2)}/{report.total_possible_marks}
                         </span>
                       </td>
                       <td className="p-3">
                         <Badge 
                           variant={report.percentage >= 70 ? "default" : report.percentage >= 50 ? "secondary" : "destructive"}
+                          title={`${report.percentage.toFixed(1)}%`}
                         >
                           {report.percentage.toFixed(1)}%
                         </Badge>
-                      </td>
-                      
-                      <td className="p-3 text-gray-300">
-                        {report.questions_attempted}/{report.total_questions}
                       </td>
                       <td className="p-3">
                         <span className="text-green-400">{report.correct_answers}</span>
@@ -639,8 +653,9 @@ const ViewReportsPage = () => {
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <Button size="sm" onClick={() => { setSelectedReports([report]); setShowReportModal(true); }}>
-                            View Details
+                            View
                           </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { window.open(`/api/admin/reports/csv?testId=${report.test_id}`, '_blank'); }}>CSV</Button>
                           <Badge variant="outline">Completed</Badge>
                         </div>
                       </td>
@@ -650,8 +665,17 @@ const ViewReportsPage = () => {
                 </tbody>
               </table>
             </div>
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-gray-400">Showing {Math.min((page - 1) * PAGE_SIZE + 1, filteredReports.length)} - {Math.min(page * PAGE_SIZE, filteredReports.length)} of {filteredReports.length} results</div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>Previous</Button>
+                <div className="text-sm text-gray-300">Page {page}</div>
+                <Button size="sm" onClick={() => setPage(page + 1)} disabled={page * PAGE_SIZE >= filteredReports.length}>Next</Button>
+              </div>
+            </div>
           </CardContent>
-        </Card>
+        </Card>)}
       <ReportDetailsModal
         isOpen={showReportModal}
         onClose={() => { setShowReportModal(false); setSelectedReports(null); }}

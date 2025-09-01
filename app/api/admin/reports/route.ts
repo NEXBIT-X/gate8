@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { stripDomain, getUserFullName, getUserRegNo } from '@/lib/utils';
 
+// Local lightweight types for internal processing
+type QuestionRecord = { id: number; test_id: string; positive_marks?: number };
+type ResponseRecord = { id: string; attempt_id: string; question_id: number; user_answer?: unknown; is_correct?: boolean; marks_obtained?: number; time_spent_seconds?: number; created_at?: string; updated_at?: string };
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -29,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const testId = searchParams.get('testId');
 
-  const serviceSupabase = createServiceRoleClient();
+    const serviceSupabase = createServiceRoleClient();
 
     // Build the query for test attempts with user and test details
     let query = serviceSupabase
@@ -57,8 +61,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch attempts' }, { status: 500 });
     }
 
-  // attempts fetched
-
     if (!attempts || attempts.length === 0) {
       return NextResponse.json({
         totalStudents: 0,
@@ -72,9 +74,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get user details for the attempts — fetch via Admin API and map needed users
+    // Get user details for the attempts
     const userIds = [...new Set(attempts.map(a => a.user_id))];
     let userMap = new Map<string, { id: string; email: string | null; full_name: string; reg_no: string; display_name: string }>();
+    
     if (userIds.length > 0) {
       const { data: usersPage, error: usersError } = await serviceSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
       if (!usersPage || usersError) {
@@ -82,7 +85,7 @@ export async function GET(request: NextRequest) {
       } else {
         usersPage.users
           .filter(u => userIds.includes(u.id))
-          .forEach((u: any) => {
+          .forEach((u) => {
             const email = u.email as string | null;
             const fullName = getUserFullName(u.user_metadata);
             const regNo = getUserRegNo(u.user_metadata);
@@ -117,8 +120,26 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching responses:', responsesError);
       return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
     }
+    // Fetch all questions for the tests involved so we can include unanswered questions
+    const testIds = [...new Set(attempts.map(a => a.test_id))];
+    const { data: allQuestions, error: questionsError } = await serviceSupabase
+      .from('questions')
+      .select('*')
+      .in('test_id', testIds);
 
-    // Process the data to generate analytics
+    if (questionsError) {
+      console.error('Error fetching questions for reports:', questionsError);
+      return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
+    }
+
+  const questionsByTest: Record<string, QuestionRecord[]> = {};
+    (allQuestions || []).forEach(q => {
+      const key = String(q.test_id);
+      if (!questionsByTest[key]) questionsByTest[key] = [];
+      questionsByTest[key].push(q);
+    });
+
+    // Process the data to generate analytics per attempt using the same logic as result API
     const reports = attempts.map(attempt => {
       const user = userMap.get(attempt.user_id) || {
         email: '',
@@ -126,78 +147,89 @@ export async function GET(request: NextRequest) {
         reg_no: '',
         display_name: ''
       };
-      
-      const attemptResponses = responses?.filter(r => r.attempt_id === attempt.id) || [];
-      
-      // Get all questions for this test to calculate total questions
-      const totalQuestions = attemptResponses.length || 0;
-      const questionsAttempted = attemptResponses.filter(r => r.user_answer !== null).length;
-      const correctAnswers = attemptResponses.filter(r => r.is_correct).length;
-      const incorrectAnswers = questionsAttempted - correctAnswers;
-      const unansweredQuestions = totalQuestions - questionsAttempted;
-      
-      // Calculate total score and possible marks
-      const totalScore = attemptResponses.reduce((sum, r) => sum + (r.marks_obtained || 0), 0);
-      const totalPossibleMarks = attempt.total_marks || (attemptResponses.length * 1); // Default 1 mark per question
-      
-      const percentage = totalPossibleMarks > 0 ? (totalScore / totalPossibleMarks) * 100 : 0;
-      
-      // Calculate time taken
-      const startTime = new Date(attempt.started_at);
-      const endTime = new Date(attempt.submitted_at || attempt.started_at);
-      const timeTakenMinutes = attempt.time_taken_seconds ? Math.round(attempt.time_taken_seconds / 60) : 
-        Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
-      
-      // Calculate subject-wise scores (simplified without subject column)
-      const subjectScores: Record<string, any> = {
+
+      const attemptResponses = (responses || []).filter(r => r.attempt_id === attempt.id) || [];
+
+      // Build a map of responses by question_id
+      const responseMap = new Map(attemptResponses.map(r => [r.question_id, r]));
+
+      // Get all questions for this attempt's test (ensure ordered)
+      const questions = (questionsByTest[String(attempt.test_id)] || []).sort((a, b) => (a.id - b.id));
+
+      // Build transformed responses including unanswered questions
+      const transformedResponses = (questions.length ? questions : []).map(q => {
+        const resp = responseMap.get(q.id);
+        if (resp) {
+          return {
+            ...resp,
+            question: q
+          };
+        }
+
+        return {
+          id: `unanswered-${q.id}`,
+          attempt_id: attempt.id,
+          question_id: q.id,
+          user_answer: null,
+          is_correct: false,
+          marks_obtained: 0,
+          time_spent_seconds: 0,
+          created_at: attempt.created_at,
+          updated_at: attempt.created_at,
+          question: q,
+          unanswered: true
+        };
+      });
+
+      const totalQuestions = transformedResponses.length;
+      const answeredQuestions = transformedResponses.filter(r => !r.unanswered).length;
+      const correctAnswers = transformedResponses.filter(r => !r.unanswered && r.is_correct).length;
+      const incorrectAnswers = transformedResponses.filter(r => !r.unanswered && !r.is_correct).length;
+      const unansweredQuestions = transformedResponses.filter(r => r.unanswered).length;
+
+      const totalScore = transformedResponses.reduce((sum: number, response: (ResponseRecord & { unanswered?: boolean })) => {
+        if (response.unanswered) return sum;
+        return sum + (response.marks_obtained || 0);
+      }, 0) || 0;
+
+      const totalPossibleMarks = attempt.total_marks || questions.reduce((s, q) => s + (q.positive_marks || 1), 0);
+      const percentage = attempt.percentage || (totalPossibleMarks > 0 ? (totalScore / totalPossibleMarks) * 100 : 0);
+
+      const timeTakenMinutes = attempt.time_taken_seconds ? Math.round(attempt.time_taken_seconds / 60) :
+        (attempt.submitted_at && attempt.started_at ? Math.round((new Date(attempt.submitted_at).getTime() - new Date(attempt.started_at).getTime()) / (1000 * 60)) : 0);
+
+  const subjectScores: Record<string, { score: number; total: number; attempted: number; correct: number }> = {
         'General': {
           score: totalScore,
           total: totalPossibleMarks,
-          attempted: questionsAttempted,
+          attempted: answeredQuestions,
           correct: correctAnswers
         }
       };
 
-      // Build per-question time mapping: { questionId: seconds }
-      const perQuestionTimeSeconds: Record<string, number> = {};
-      attemptResponses.forEach(r => {
-        perQuestionTimeSeconds[String(r.question_id)] = r.time_spent_seconds || 0;
-      });
-
-      // Prepare detailed responses for this attempt
-      const detailedResponses = attemptResponses.map(r => ({
-        id: r.id,
-        question_id: r.question_id,
-        question_type: r.question_type || (r.questions ? r.questions.question_type : null),
-        user_answer: r.user_answer,
-        is_correct: r.is_correct,
-        marks_obtained: r.marks_obtained,
-        time_spent_seconds: r.time_spent_seconds || 0
-      }));
-
       return {
         id: attempt.user_id,
-  email: user.email || '',
-  full_name: user.full_name || (user.email ? stripDomain(user.email) : ''),
+        email: user.email || '',
+        full_name: user.full_name || (user.email ? stripDomain(user.email) : ''),
         test_title: attempt.tests?.title || 'Unknown Test',
         test_id: attempt.test_id,
         attempt_id: attempt.id,
         total_score: totalScore,
         total_possible_marks: totalPossibleMarks,
         percentage,
-        questions_attempted: questionsAttempted,
+        questions_attempted: answeredQuestions,
         total_questions: totalQuestions,
         correct_answers: correctAnswers,
         incorrect_answers: incorrectAnswers,
         unanswered_questions: unansweredQuestions,
         time_taken_minutes: timeTakenMinutes,
-        per_question_time_seconds: perQuestionTimeSeconds,
-        // Attempt-level marks
-        total_positive_marks: attempt.total_positive_marks || 0,
-        total_negative_marks: attempt.total_negative_marks || 0,
-        final_score: attempt.final_score || 0,
-        // Detailed responses
-        responses: detailedResponses,
+        per_question_time_seconds: transformedResponses.reduce((acc: Record<string, number>, r: (ResponseRecord & { question_id: number })) => {
+          acc[String(r.question_id)] = r.time_spent_seconds || 0; return acc;
+        }, {} as Record<string, number>),
+        total_positive_marks: attempt.total_score || 0,
+        total_negative_marks: 0,
+        final_score: attempt.total_score || totalScore,
+        responses: transformedResponses,
         completed_at: attempt.submitted_at || attempt.started_at,
         subject_scores: subjectScores
       };
@@ -212,7 +244,11 @@ export async function GET(request: NextRequest) {
     const averageTimeSpent = reports.reduce((sum, r) => sum + r.time_taken_minutes, 0) / totalAttempts;
 
     // Calculate subject-wise analytics (simplified)
-    const subjectAnalytics: Record<string, any> = {
+    const subjectAnalytics: Record<string, {
+      totalScore: number;
+      totalPossible: number;
+      totalAttempts: number;
+    }> = {
       'General': {
         totalScore: reports.reduce((sum, r) => sum + r.total_score, 0),
         totalPossible: reports.reduce((sum, r) => sum + r.total_possible_marks, 0),
@@ -221,7 +257,11 @@ export async function GET(request: NextRequest) {
     };
 
     // Convert to final format
-    const finalSubjectAnalytics: Record<string, any> = {};
+    const finalSubjectAnalytics: Record<string, {
+      averageScore: number;
+      averagePercentage: number;
+      totalAttempts: number;
+    }> = {};
     Object.entries(subjectAnalytics).forEach(([subject, stats]) => {
       finalSubjectAnalytics[subject] = {
         averageScore: stats.totalScore / Math.max(stats.totalAttempts, 1),

@@ -99,118 +99,118 @@ export async function GET(request: NextRequest) {
     // Create a map of user data
     const userMap = new Map();
     if (users?.users) {
-      users.users.forEach(user => {
-        const profile = profileMap.get(user.id);
-        
-        // Get name from profile first, then user metadata, then email
-        let fullName = '';
-        if (profile?.full_name) {
-          fullName = profile.full_name;
-        } else {
-          fullName = getUserFullName(user.user_metadata);
-        }
-        
-        // Get reg no from user metadata only (profiles table doesn't have reg_no)
-        let regNo = getUserRegNo(user.user_metadata);
-        
-        userMap.set(user.id, {
-          id: user.id,
-          email: user.email,
+      users.users.forEach(u => {
+        const profile = profileMap.get(u.id);
+
+  const fullName = profile?.full_name || getUserFullName(u.user_metadata);
+  const regNo = getUserRegNo(u.user_metadata);
+
+        userMap.set(u.id, {
+          id: u.id,
+          email: u.email,
           full_name: fullName,
           reg_no: regNo
         });
       });
     }
 
-    // Get all responses for these attempts to calculate detailed stats
+    // Get questions for these tests so we include unanswered questions
+    const testIds = [...new Set(attempts.map(a => a.test_id))];
+    const { data: allQuestions, error: questionsError } = await serviceSupabase
+      .from('questions')
+      .select('*')
+      .in('test_id', testIds);
+
+    if (questionsError) {
+      console.error('Error fetching questions for CSV export:', questionsError);
+      return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
+    }
+
+    type QuestionType = { id: number; test_id: string; positive_marks?: number };
+    const questionsByTest: Record<string, QuestionType[]> = {};
+    (allQuestions || []).forEach((q: QuestionType) => {
+      const key = String(q.test_id);
+      if (!questionsByTest[key]) questionsByTest[key] = [];
+      questionsByTest[key].push(q);
+    });
+
+    // Fetch all responses for these attempts so we can build transformed responses (include unanswered)
     const attemptIds = attempts.map(a => a.id);
-    const { data: responses, error: responsesError } = await serviceSupabase
+    type ResponseRecord = { id: string; attempt_id: string; question_id: number; user_answer?: unknown; is_correct?: boolean; marks_obtained?: number; time_spent_seconds?: number; created_at?: string; updated_at?: string };
+    const { data: responsesData, error: responsesError } = await serviceSupabase
       .from('user_question_responses')
-      .select(`
-        *,
-        questions:question_id (
-          id,
-          question_type
-        )
-      `)
+      .select('*')
       .in('attempt_id', attemptIds);
 
     if (responsesError) {
-      console.error('Error fetching responses:', responsesError);
+      console.error('Error fetching responses for CSV export:', responsesError);
       return NextResponse.json({ error: 'Failed to fetch responses' }, { status: 500 });
     }
 
-    // Process the data
-  const csvRows = ['Student Name,Registration Number,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At'];
+    const escapeCsvValue = (value: unknown): string => {
+      const str = String(value ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
 
-    attempts.forEach(attempt => {
-      const user = userMap.get(attempt.user_id);
-      
-      // Handle missing users gracefully
-      if (!user) {
-        console.warn(`User not found for attempt ${attempt.id}, user_id: ${attempt.user_id}`);
-        
-        // Try to get data from profiles table as backup
-        const profile = profileMap.get(attempt.user_id);
-        const fallbackUser = {
-          email: `deleted-user-${attempt.user_id.slice(0, 8)}@unknown.com`,
-          full_name: profile?.full_name || `Deleted User ${attempt.user_id.slice(0, 8)}`,
+    const csvRows = ['Student Name,Registration Number,Email,Test Title,Score,Total Marks,Percentage,Questions Attempted,Total Questions,Correct Answers,Incorrect Answers,Unanswered,Time Taken (min),Per-Question Time (sec),Completed At'];
+
+    for (const attempt of attempts) {
+      try {
+        const user = userMap.get(attempt.user_id);
+
+        if (!user) {
+          const profile = profileMap.get(attempt.user_id);
+          const fallbackUser = {
+            email: `deleted-user-${attempt.user_id.slice(0, 8)}@unknown.com`,
+            full_name: profile?.full_name || `Deleted User ${attempt.user_id.slice(0, 8)}`,
+            reg_no: 'N/A'
+          };
+          userMap.set(attempt.user_id, fallbackUser);
+        }
+
+        const finalUser = userMap.get(attempt.user_id) || {
+          email: 'unknown@example.com',
+          full_name: `User ${String(attempt.user_id).slice(0, 8)}`,
           reg_no: 'N/A'
         };
-        
-        userMap.set(attempt.user_id, fallbackUser);
-      }
-      
-      const finalUser = userMap.get(attempt.user_id) || {
-        email: 'unknown@example.com', 
-        full_name: `User ${attempt.user_id.slice(0, 8)}`,
-        reg_no: 'N/A'
-      };
-      
-      const attemptResponses = responses?.filter(r => r.attempt_id === attempt.id) || [];
-      
-      // Calculate stats
-      const totalQuestions = attemptResponses.length || 0;
-      const questionsAttempted = attemptResponses.filter(r => r.user_answer !== null).length;
-      const correctAnswers = attemptResponses.filter(r => r.is_correct).length;
-      const incorrectAnswers = questionsAttempted - correctAnswers;
-      const unansweredQuestions = totalQuestions - questionsAttempted;
-      
-      const totalScore = attemptResponses.reduce((sum, r) => sum + (r.marks_obtained || 0), 0);
-      const totalPossibleMarks = attempt.total_marks || (attemptResponses.length * 1); // Default 1 mark per question
-      
-      const percentage = totalPossibleMarks > 0 ? (totalScore / totalPossibleMarks) * 100 : 0;
-      
-      // Calculate time taken
-      const startTime = new Date(attempt.started_at);
-      const endTime = new Date(attempt.submitted_at || attempt.started_at);
-      const timeTakenMinutes = attempt.time_taken_seconds ? Math.round(attempt.time_taken_seconds / 60) : 
-        Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
-      
-      // Calculate subject-wise scores (simplified without subject column)
-      const subjectScores: Record<string, any> = {
-        'General': { score: totalScore, total: totalPossibleMarks }
-      };
 
-      const subjectScoresText = Object.entries(subjectScores)
-        .map(([subject, scores]) => `${subject}: ${scores.score}/${scores.total}`)
-        .join('; ');
+        // Build attempt responses including unanswered questions
+  type RespType = ResponseRecord & { unanswered?: boolean };
+  const attemptResponses: RespType[] = (responsesData || []).filter((r: ResponseRecord) => r.attempt_id === attempt.id) as RespType[];
+  const responseMap = new Map<number, RespType>(attemptResponses.map((r: RespType) => [r.question_id, r]));
+        const questions = (questionsByTest[String(attempt.test_id)] || []).sort((a, b) => (a.id - b.id));
 
-      // Build per-question time string (questionId:seconds; ...)
-      const perQuestionTimeText = attemptResponses.map(r => `${r.question_id}:${r.time_spent_seconds || 0}`).join('; ');
+        const transformedResponses = (questions.length ? questions : []).map((q: QuestionType) => {
+          const resp = responseMap.get(q.id);
+          if (resp) return { ...resp, question: q } as RespType & { question: QuestionType };
+          return { id: `unanswered-${q.id}`, attempt_id: attempt.id, question_id: q.id, user_answer: null, is_correct: false, marks_obtained: 0, time_spent_seconds: 0, created_at: attempt.created_at, updated_at: attempt.created_at, question: q, unanswered: true } as RespType & { question: QuestionType };
+        });
 
-      // Escape CSV values
-      const escapeCsvValue = (value: any): string => {
-        const str = String(value || '');
-        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
+        const totalQuestions = transformedResponses.length;
+        const answeredQuestions = transformedResponses.filter(r => !r.unanswered).length;
+        const correctAnswers = transformedResponses.filter(r => !r.unanswered && r.is_correct).length;
+        const incorrectAnswers = transformedResponses.filter(r => !r.unanswered && !r.is_correct).length;
+        const unansweredQuestions = transformedResponses.filter(r => r.unanswered).length;
 
-      // Determine display name with same logic as the reports page
-      const displayName = finalUser.full_name || (finalUser.email ? stripDomain(finalUser.email) : 'Unknown User');
-      const regNumber = finalUser.reg_no || 'N/A';        const row = [
+        const totalScore = transformedResponses.reduce((sum: number, response: RespType) => {
+          if (response.unanswered) return sum;
+          return sum + (response.marks_obtained || 0);
+        }, 0) || 0;
+
+        const totalPossibleMarks = attempt.total_marks || questions.reduce((s: number, q: QuestionType) => s + (q.positive_marks || 1), 0);
+        const percentage = totalPossibleMarks > 0 ? (totalScore / totalPossibleMarks) * 100 : 0;
+
+        const timeTakenMinutes = attempt.time_taken_seconds ? Math.round(attempt.time_taken_seconds / 60) : 0;
+
+        const perQuestionTimeText = transformedResponses.map(r => `${r.question_id}:${r.time_spent_seconds || 0}`).join('; ');
+
+        const displayName = finalUser.full_name || (finalUser.email ? stripDomain(finalUser.email) : 'Unknown User');
+        const regNumber = finalUser.reg_no || 'N/A';
+
+        const row = [
           escapeCsvValue(displayName),
           escapeCsvValue(regNumber),
           escapeCsvValue(finalUser.email || ''),
@@ -218,18 +218,21 @@ export async function GET(request: NextRequest) {
           totalScore,
           totalPossibleMarks,
           percentage.toFixed(2),
-          questionsAttempted,
+          answeredQuestions,
           totalQuestions,
           correctAnswers,
           incorrectAnswers,
           unansweredQuestions,
           timeTakenMinutes,
           escapeCsvValue(perQuestionTimeText),
-          new Date(attempt.submitted_at || attempt.started_at).toLocaleString()
+          escapeCsvValue(new Date(attempt.submitted_at || attempt.started_at).toLocaleString())
         ].join(',');
 
-      csvRows.push(row);
-    });
+        csvRows.push(row);
+      } catch (err) {
+        console.error(`Error processing attempt ${attempt.id} for CSV:`, err);
+      }
+    }
 
     const csvContent = csvRows.join('\n');
 

@@ -5,8 +5,39 @@ import { stripDomain } from '@/lib/utils';
 interface ReportDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  reports: any[] | null;
+  reports: ReportType[] | null;
 }
+
+type ResponseType = {
+  id: string;
+  question_id: number;
+  user_answer?: unknown;
+  is_correct?: boolean;
+  marks_obtained?: number;
+  time_spent_seconds?: number;
+  question?: { question?: string; question_text?: string; question_type?: string; correct_answers?: string[]; numerical_answer_range?: { min?: number; max?: number } | { exact?: number } };
+  unanswered?: boolean;
+};
+
+type ReportType = {
+  attempt_id: string;
+  user_id?: string;
+  test_title?: string;
+  completed_at?: string;
+  total_score?: number;
+  total_possible_marks?: number;
+  percentage?: number;
+  questions_attempted?: number;
+  total_questions?: number;
+  correct_answers?: number;
+  incorrect_answers?: number;
+  time_taken_minutes?: number;
+  total_positive_marks?: number;
+  total_negative_marks?: number;
+  responses?: ResponseType[];
+  email?: string;
+  full_name?: string;
+};
 
 const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({ isOpen, onClose, reports }) => {
   if (!isOpen || !reports || reports.length === 0) return null;
@@ -24,7 +55,7 @@ const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({ isOpen, onClose
         <div className="p-6 text-sm text-gray-800 dark:text-gray-100 space-y-4">
           <div className="text-xs text-gray-500">Showing {reports.length} attempt{reports.length > 1 ? 's' : ''}</div>
 
-          {reports.map((report: any) => (
+          {reports.map((report: ReportType) => (
             <div key={report.attempt_id} className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -33,7 +64,7 @@ const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({ isOpen, onClose
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-gray-400">Completed At</div>
-                  <div className="font-medium">{new Date(report.completed_at).toLocaleString()}</div>
+                  <div className="font-medium">{report.completed_at ? new Date(report.completed_at).toLocaleString() : 'N/A'}</div>
                 </div>
               </div>
 
@@ -44,11 +75,7 @@ const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({ isOpen, onClose
                 </div>
                 <div>
                   <div className="text-xs text-gray-400">Percentage</div>
-                  <div className="font-medium">{report.percentage.toFixed(2)}%</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400">Attempted</div>
-                  <div className="font-medium">{report.questions_attempted} / {report.total_questions}</div>
+                  <div className="font-medium">{(report.percentage ?? 0).toFixed(2)}%</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-400">Time Taken</div>
@@ -64,55 +91,44 @@ const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({ isOpen, onClose
                 </div>
               </div>
 
-              <div>
-                <h4 className="font-semibold">Per-question time (sec)</h4>
-                {report.per_question_time_seconds && Object.keys(report.per_question_time_seconds).length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                    {Object.entries(report.per_question_time_seconds).map(([qid, secs]) => (
-                      <div key={qid} className="p-2 bg-gray-100 dark:bg-gray-800 rounded">
-                        <div className="text-xs text-gray-500">Question</div>
-                        <div className="font-medium">{qid}</div>
-                        <div className="text-xs text-gray-500">Time</div>
-                        <div className="font-medium">{String(secs || 0)} sec</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-gray-500">No per-question time data available.</div>
-                )}
-              </div>
-
               <div className="mt-3">
                 <h4 className="font-semibold">Responses</h4>
                 {report.responses && report.responses.length > 0 ? (
-                  <div className="space-y-2 mt-2">
-                    {report.responses.map((r: any) => (
-                      <div key={r.id} className="p-2 bg-white dark:bg-gray-800 rounded">
-                        <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-4 mt-2">
+                    {report.responses.map((r: ResponseType) => (
+                      <div key={r.id} className="p-3 bg-white dark:bg-gray-800 rounded">
+                        <div className="mb-2 text-sm text-gray-500">Question ID: <span className="font-medium text-gray-800 dark:text-gray-100">{r.question_id}</span></div>
+
+                        <div className="mb-2 text-xs text-gray-400">Question Text</div>
+                        <div className="mb-2 font-medium">{r.question?.question || r.question?.question_text || 'Question text not available'}</div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div>
-                            <div className="text-xs text-gray-400">Question ID</div>
-                            <div className="font-medium">{r.question_id}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-400">Type</div>
-                            <div className="font-medium">{r.question_type || 'N/A'}</div>
-                          </div>
-                          <div className="col-span-2">
-                            <div className="text-xs text-gray-400">Answer</div>
-                            <div className="font-medium">{JSON.stringify(r.user_answer)}</div>
+                            <div className="text-xs text-gray-400">Your Answer</div>
+                            <div className="font-medium">{Array.isArray(r.user_answer) ? (r.user_answer as string[]).join(', ') : (r.user_answer ?? 'Not answered') as React.ReactNode}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-gray-400">Marks</div>
-                            <div className="font-medium">{r.marks_obtained}</div>
+                            <div className="text-xs text-gray-400">Correct Answer</div>
+                            <div className="font-medium">{r.question?.correct_answers ? (Array.isArray(r.question.correct_answers) ? r.question.correct_answers.join(', ') : String(r.question.correct_answers)) : (r.question?.numerical_answer_range ? ( 'see range' ) : 'N/A')}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-gray-400">Correct</div>
-                            <div className="font-medium">{r.is_correct ? 'Yes' : 'No'}</div>
+                            <div className="text-xs text-gray-400">Marks Obtained</div>
+                            <div className="font-medium">{r.marks_obtained ?? 0}</div>
                           </div>
-                          <div>
-                            <div className="text-xs text-gray-400">Time (sec)</div>
-                            <div className="font-medium">{r.time_spent_seconds}</div>
+                        </div>
+
+                        {r.question?.question_type === 'NAT' && r.question?.numerical_answer_range && (
+                          <div className="mt-2 text-sm text-gray-600">
+                            <strong>Correct Range:</strong> {('exact' in r.question.numerical_answer_range && typeof r.question.numerical_answer_range.exact === 'number')
+                              ? r.question.numerical_answer_range.exact
+                              : (('min' in r.question.numerical_answer_range || 'max' in r.question.numerical_answer_range)
+                                  ? `${(r.question.numerical_answer_range as { min?: number }).min ?? 'N/A'} - ${(r.question.numerical_answer_range as { max?: number }).max ?? 'N/A'}`
+                                  : 'N/A')}
                           </div>
+                        )}
+
+                        <div className="mt-2 text-sm">
+                          <span className={`font-medium ${r.is_correct ? 'text-green-600' : 'text-red-600'}`}>{r.is_correct ? 'Correct' : (r.unanswered ? 'Unanswered' : 'Incorrect')}</span>
                         </div>
                       </div>
                     ))}
