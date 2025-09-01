@@ -382,7 +382,7 @@ const ViewReportsPage = () => {
             <select
               value={selectedTest}
               onChange={(e) => setSelectedTest(e.target.value)}
-              className="card border border-gray-700 rounded-lg px-4 py-2 text-white"
+              className="border border-gray-700 rounded-lg px-4 py-2 "
               aria-label="Select test to filter reports"
             >
               <option value="all">Choose Test</option>
