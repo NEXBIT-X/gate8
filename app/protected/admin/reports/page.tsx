@@ -31,6 +31,7 @@ interface StudentReport {
   id: string;
   email: string;
   full_name?: string;
+  reg_no?: string;
   test_title: string;
   test_id: string;
   attempt_id: string;
@@ -80,6 +81,206 @@ interface AnalyticsData {
   reports: StudentReport[];
 }
 
+// Function to escape CSV values
+function escapeCsvValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  
+  const str = String(value);
+  
+  // If the value contains comma, quote, or newline, wrap in quotes and escape internal quotes
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  
+  return str;
+}
+
+// Function to extract department from email
+function extractDepartment(email: string): string {
+  if (!email) return 'N/A';
+  
+  // Get the part before @ symbol
+  const emailPrefix = email.split('@')[0]?.toLowerCase() || '';
+  
+  // Split by fullstop to get parts
+  const parts = emailPrefix.split('.');
+  
+  // Look for department in the parts after fullstop
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i];
+    
+    // Extract department name (letters only, before any numbers)
+    const deptMatch = part.match(/^([a-zA-Z]+)/);
+    if (deptMatch) {
+      const deptName = deptMatch[1].toUpperCase();
+      
+      // Check if it's a known department
+      if (['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'BMECH', 'CHEM', 'AIML', 'AIDS', 'CSBS', 'CYBER'].includes(deptName)) {
+        return deptName;
+      }
+      
+      // Handle common variations
+      if (deptName === 'CS') return 'CSE';
+      if (deptName === 'EC') return 'ECE';
+      if (deptName === 'EE') return 'EEE';
+      if (deptName === 'ME') return 'MECH';
+      if (deptName === 'CE') return 'CIVIL';
+      if (deptName === 'BME') return 'BMECH';
+      if (deptName === 'CH') return 'CHEM';
+      
+      // If it's a valid department-like string (3-5 letters), return it
+      if (deptName.length >= 2 && deptName.length <= 5) {
+        return deptName;
+      }
+    }
+  }
+  
+  // Fallback: try the old method if no department found after fullstop
+  if (emailPrefix.includes('cse') || emailPrefix.includes('cs')) return 'CSE';
+  if (emailPrefix.includes('ece') || emailPrefix.includes('ec')) return 'ECE';
+  if (emailPrefix.includes('eee') || emailPrefix.includes('ee')) return 'EEE';
+  if (emailPrefix.includes('mech') || emailPrefix.includes('me')) return 'MECH';
+  if (emailPrefix.includes('civil') || emailPrefix.includes('ce')) return 'CIVIL';
+  if (emailPrefix.includes('it')) return 'IT';
+  if (emailPrefix.includes('bmech') || emailPrefix.includes('bme')) return 'BMECH';
+  if (emailPrefix.includes('chem') || emailPrefix.includes('ch')) return 'CHEM';
+  if (emailPrefix.includes('aiml')) return 'AIML';
+  if (emailPrefix.includes('aids')) return 'AIDS';
+  if (emailPrefix.includes('csbs')) return 'CSBS';
+  if (emailPrefix.includes('cyber')) return 'CYBER';
+  
+  return 'N/A';
+}
+
+// Function to generate full report CSV with individual test scores
+function generateFullReportCSVWithIndividualScores(allTestReports: any[], tests: any[]): string {
+  // Collect all unique students from all test reports
+  const studentsMap = new Map();
+  
+  allTestReports.forEach(testData => {
+    testData.reports.forEach((report: StudentReport) => {
+      if (!studentsMap.has(report.email)) {
+        studentsMap.set(report.email, {
+          email: report.email,
+          full_name: report.full_name || stripDomain(report.email),
+          reg_no: report.reg_no || 'N/A',
+          dept: extractDepartment(report.email)
+        });
+      }
+    });
+  });
+
+  // Create test scores map - organized by email and test ID
+  const testScoresMap = new Map();
+  allTestReports.forEach(testData => {
+    testData.reports.forEach((report: StudentReport) => {
+      const key = `${report.email}_${testData.testId}`;
+      testScoresMap.set(key, {
+        score: report.total_score || 0,
+        totalMarks: report.total_possible_marks || 100
+      });
+    });
+  });
+
+  // Build CSV header
+  let csvContent = 'S.No,Name,Registration No,Email,Dept';
+  tests.forEach(test => {
+    csvContent += `,${escapeCsvValue(test.title)}`;
+  });
+  csvContent += '\n';
+
+  // Build CSV rows
+  const students = Array.from(studentsMap.values());
+  students.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+
+  students.forEach((student, index) => {
+    csvContent += `${index + 1},`;
+    csvContent += `${escapeCsvValue(student.full_name)},`;
+    csvContent += `${escapeCsvValue(student.reg_no)},`;
+    csvContent += `${escapeCsvValue(student.email)},`;
+    csvContent += `${escapeCsvValue(student.dept)}`;
+
+    // Add scores for each test using individual test data
+    tests.forEach(test => {
+      const scoreKey = `${student.email}_${test.id}`;
+      const testScore = testScoresMap.get(scoreKey);
+      
+      if (testScore) {
+        csvContent += `,${testScore.score}/${testScore.totalMarks}`;
+      } else {
+        csvContent += ',AB';
+      }
+    });
+
+    csvContent += '\n';
+  });
+
+  return csvContent;
+}
+
+// Function to generate full report CSV
+function generateFullReportCSV(reports: StudentReport[], tests: any[]): string {
+  // Get unique students
+  const studentsMap = new Map();
+  reports.forEach(report => {
+    if (!studentsMap.has(report.email)) {
+      studentsMap.set(report.email, {
+        email: report.email,
+        full_name: report.full_name || stripDomain(report.email),
+        reg_no: report.reg_no || 'N/A',
+        dept: extractDepartment(report.email)
+      });
+    }
+  });
+
+  // Create test attempts map
+  const attemptsMap = new Map();
+  reports.forEach(report => {
+    const key = `${report.email}_${report.test_id}`;
+    attemptsMap.set(key, {
+      score: report.total_score || 0,
+      totalMarks: report.total_possible_marks || 100
+    });
+  });
+
+  // Build CSV header
+  let csvContent = 'S.No,Name,Registration No,Email,Dept';
+  tests.forEach(test => {
+    csvContent += `,${escapeCsvValue(test.title)}`;
+  });
+  csvContent += '\n';
+
+  // Build CSV rows
+  const students = Array.from(studentsMap.values());
+  students.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+
+  students.forEach((student, index) => {
+    csvContent += `${index + 1},`;
+    csvContent += `${escapeCsvValue(student.full_name)},`;
+    csvContent += `${escapeCsvValue(student.reg_no)},`;
+    csvContent += `${escapeCsvValue(student.email)},`;
+    csvContent += `${escapeCsvValue(student.dept)}`;
+
+    // Add scores for each test (without percentage)
+    tests.forEach(test => {
+      const attemptKey = `${student.email}_${test.id}`;
+      const attempt = attemptsMap.get(attemptKey);
+      
+      if (attempt) {
+        csvContent += `,${attempt.score}/${attempt.totalMarks}`;
+      } else {
+        csvContent += ',AB';
+      }
+    });
+
+    csvContent += '\n';
+  });
+
+  return csvContent;
+}
+
 const ViewReportsPage = () => {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   // expandedAttempt removed (unused)
@@ -91,6 +292,7 @@ const ViewReportsPage = () => {
   const [selectedTest, setSelectedTest] = useState<string>('all');
   const [tests, setTests] = useState<Array<{ id: string; title: string }>>([]);
   const [downloadingCSV, setDownloadingCSV] = useState(false);
+  const [downloadingFullReport, setDownloadingFullReport] = useState(false);
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const PAGE_SIZE = 50;
@@ -342,6 +544,56 @@ const ViewReportsPage = () => {
     }
   };
 
+  const handleDownloadFullReport = async () => {
+    try {
+      setDownloadingFullReport(true);
+      
+      // First, get all available tests
+      const testsResponse = await fetch('/api/tests');
+      if (!testsResponse.ok) {
+        throw new Error('Failed to fetch tests');
+      }
+      const testsData = await testsResponse.json();
+      
+      // Fetch reports for EACH test individually to get accurate scores
+      const testReportsPromises = testsData.map(async (test: any) => {
+        const response = await fetch(`/api/admin/reports?testId=${test.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          return { testId: test.id, testTitle: test.title, reports: data.reports || [] };
+        }
+        return { testId: test.id, testTitle: test.title, reports: [] };
+      });
+      
+      const allTestReports = await Promise.all(testReportsPromises);
+      
+      // Generate CSV content with individual test scores
+      let csvContent = generateFullReportCSVWithIndividualScores(allTestReports, testsData);
+      
+      // Add BOM for proper Excel encoding
+      const BOM = '\uFEFF';
+      csvContent = BOM + csvContent;
+      
+      // Download the CSV
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `full-student-report-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (error) {
+      console.error('Error generating full report:', error);
+      alert('Failed to generate full report');
+    } finally {
+      setDownloadingFullReport(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -366,6 +618,29 @@ const ViewReportsPage = () => {
   return (
     <div className="min-h-screen  p-6">
       <div className="max-w-7xl mx-auto">
+        {/* View Full Report Card */}
+        <Card className="mb-6 bg-card border-border">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Full Student Report </h2>
+                <p className="text-gray-400 text-sm">
+                    CSV report with all students test scores with Respective Department!
+                </p>
+              </div>
+              <Button
+                onClick={handleDownloadFullReport}
+                disabled={downloadingFullReport}
+                className="bg-green-600 hover:bg-green-700 text-white border-green-500 min-w-[100px]"
+                title="Download comprehensive report with all students and test scores"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {downloadingFullReport ? 'Generating...' : 'View'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>

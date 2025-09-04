@@ -211,6 +211,7 @@ export async function GET(request: NextRequest) {
         id: attempt.user_id,
         email: user.email || '',
         full_name: user.full_name || (user.email ? stripDomain(user.email) : ''),
+        reg_no: user.reg_no || '',
         test_title: attempt.tests?.title || 'Unknown Test',
         test_id: attempt.test_id,
         attempt_id: attempt.id,
