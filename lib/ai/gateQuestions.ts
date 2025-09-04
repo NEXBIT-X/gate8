@@ -30,6 +30,7 @@ export interface QuestionGenerationResult {
   questions: GeneratedQuestion[];
   success: boolean;
   error?: string;
+  engineUsed?: 'groq' | 'gemini' | 'openai';
   metadata?: {
     totalGenerated: number;
     bySubject: Record<string, number>;
@@ -149,14 +150,8 @@ Do not include any markdown formatting, explanatory text, or additional content 
 /**
  * Fallback function to extract questions from malformed text
  */
-function extractQuestionsFromText(text: string): GeneratedQuestion[] {
+function extractQuestionsFromText(): GeneratedQuestion[] {
   const questions: GeneratedQuestion[] = [];
-  
-  // Try to find question-like patterns in the text
-  const questionPatterns = [
-    /question_text["\s]*:["\s]*([^"]+)["]/gi,
-    /question["\s]*:["\s]*([^"]+)["]/gi
-  ];
   
   // This is a basic fallback - create a simple question if parsing fails
   questions.push({
@@ -181,10 +176,17 @@ function extractQuestionsFromText(text: string): GeneratedQuestion[] {
 export async function generateGATEQuestions(request: QuestionGenerationRequest, aiEngine: 'groq' | 'gemini' | 'openai' = 'groq'): Promise<QuestionGenerationResult> {
   // Choose engine: groq (default) or other experimental engines
   const groqApiKey = process.env.GROQ_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
 
   if (aiEngine === 'groq' && !groqApiKey) {
-    return { questions: [], success: false, error: 'GROQ_API_KEY not configured' };
+    return { questions: [], success: false, error: 'GROQ_API_KEY not configured', engineUsed: 'groq' };
   }
+
+  if (aiEngine === 'gemini' && !geminiApiKey) {
+    return { questions: [], success: false, error: 'GEMINI_API_KEY not configured', engineUsed: 'gemini' };
+  }
+
+  let actualEngineUsed = aiEngine; // Track which engine was actually used
 
   try {
     let generatedText: string | undefined;
@@ -204,7 +206,120 @@ REQUIREMENTS:
 
 Generate ${request.questionCount} high-quality GATE exam questions following the above specifications:`;
 
-  const groq = new Groq({ apiKey: groqApiKey });
+    if (aiEngine === 'gemini') {
+      // Call Google Generative Language API (Gemini) via REST using GEMINI_API_KEY
+      const candidateUrls = [
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(geminiApiKey || '')}`,
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-latest:generateContent?key=${encodeURIComponent(geminiApiKey || '')}`,
+        `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generate?key=${encodeURIComponent(geminiApiKey || '')}`
+      ];
+
+      const attempts: { url: string; status?: number; errorText?: string }[] = [];
+      let lastPayload: unknown = null;
+
+      for (const url of candidateUrls) {
+        try {
+          const body = url.includes('generateContent') 
+            ? { contents: [{ parts: [{ text: prompt }] }] }
+            : { prompt: { text: prompt }, temperature: 0.8, maxOutputTokens: 8000 };
+
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          const status = resp.status;
+          if (!resp.ok) {
+            const text = await resp.text().catch(() => '');
+            attempts.push({ url, status, errorText: text });
+            if (status === 404) continue; // try next candidate
+            throw new Error(`Gemini API error: ${status} ${text}`);
+          }
+
+          lastPayload = await resp.json();
+          attempts.push({ url, status });
+          break;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          attempts.push({ url, errorText: msg });
+        }
+      }
+
+      if (!lastPayload) {
+        const attempted = attempts.map(a => `${a.url} (status=${a.status ?? 'err'}${a.errorText ? `, msg=${a.errorText}` : ''})`).join('; ');
+        console.warn(`Gemini API failed on all endpoints. Attempts: ${attempted}. Falling back to Groq.`);
+        
+        if (!groqApiKey) {
+          throw new Error(`Both Gemini and Groq APIs failed. Gemini attempts: ${attempted}. Groq: No API key configured.`);
+        }
+        
+        console.log('Using Groq as fallback for Gemini failure...');
+        actualEngineUsed = 'groq'; // Update engine tracking for fallback
+        const groq = new Groq({ apiKey: groqApiKey });
+        const chatCompletion = await groq.chat.completions.create({
+          messages: [{ role: 'user', content: prompt }],
+          model: 'llama-3.1-8b-instant',
+          temperature: 0.8,
+          max_tokens: 8000,
+          top_p: 0.9
+        });
+        
+        const raw = chatCompletion.choices[0]?.message?.content ?? undefined;
+        generatedText = typeof raw === 'string' ? raw : undefined;
+      } else {
+        // Extract text from Gemini response
+        const payload = lastPayload;
+        const payloadObj = (payload && typeof payload === 'object') ? (payload as Record<string, unknown>) : {};
+
+        // Modern Gemini format: candidates[0].content.parts[0].text
+        if (Array.isArray(payloadObj['candidates'])) {
+          const firstCandidate = (payloadObj['candidates'] as unknown[])[0];
+          if (firstCandidate && typeof firstCandidate === 'object') {
+            const candidateObj = firstCandidate as Record<string, unknown>;
+            const content = candidateObj['content'];
+            if (content && typeof content === 'object') {
+              const contentObj = content as Record<string, unknown>;
+              const parts = contentObj['parts'];
+              if (Array.isArray(parts) && parts[0]) {
+                const firstPart = parts[0] as Record<string, unknown>;
+                if (typeof firstPart['text'] === 'string') {
+                  generatedText = firstPart['text'] as string;
+                }
+              }
+            }
+          }
+        }
+
+        // Fallback for legacy format
+        if (!generatedText) {
+          let candidate: unknown = undefined;
+          if (Array.isArray(payloadObj['candidates'])) {
+            candidate = (payloadObj['candidates'] as unknown[])[0];
+          }
+          if (candidate === undefined) candidate = payloadObj['output'] ?? payloadObj['result'] ?? undefined;
+
+          if (typeof candidate === 'string') {
+            generatedText = candidate;
+          } else if (candidate && typeof candidate === 'object') {
+            const c = candidate as Record<string, unknown>;
+            if (typeof c['output'] === 'string') generatedText = c['output'] as string;
+            else if (typeof c['content'] === 'string') generatedText = c['content'] as string;
+            else if (typeof c['text'] === 'string') generatedText = c['text'] as string;
+          }
+        }
+
+        if (!generatedText) {
+          try {
+            generatedText = JSON.stringify(payloadObj);
+          } catch {
+            generatedText = String(payloadObj ?? '');
+          }
+        }
+      }
+    } else {
+      // Default: GROQ SDK chat completion
+      const groq = new Groq({ apiKey: groqApiKey });
       const chatCompletion = await groq.chat.completions.create({
         messages: [
           {
@@ -219,8 +334,9 @@ Generate ${request.questionCount} high-quality GATE exam questions following the
       });
 
       // Normalize possible null to undefined and ensure string type
-  const raw = chatCompletion.choices[0]?.message?.content ?? undefined;
-  generatedText = typeof raw === 'string' ? raw : undefined;
+      const raw = chatCompletion.choices[0]?.message?.content ?? undefined;
+      generatedText = typeof raw === 'string' ? raw : undefined;
+    }
 
     if (!generatedText) {
       throw new Error('No content generated from AI model');
@@ -261,14 +377,14 @@ Generate ${request.questionCount} high-quality GATE exam questions following the
       
       // Try to extract questions manually as fallback
       try {
-        const fallbackQuestions = extractQuestionsFromText(generatedText);
+        const fallbackQuestions = extractQuestionsFromText();
         if (fallbackQuestions.length > 0) {
           questions = fallbackQuestions;
           console.log(`Used fallback parser, generated ${questions.length} questions`);
         } else {
           throw new Error('Failed to parse generated questions - no valid JSON found');
         }
-      } catch (fallbackError) {
+      } catch {
         throw new Error('Failed to parse generated questions - unable to extract questions');
       }
     }
@@ -297,6 +413,7 @@ Generate ${request.questionCount} high-quality GATE exam questions following the
     return {
       questions: validQuestions,
       success: true,
+      engineUsed: actualEngineUsed,
       metadata: {
         totalGenerated: validQuestions.length,
         bySubject,
@@ -309,7 +426,8 @@ Generate ${request.questionCount} high-quality GATE exam questions following the
     return {
       questions: [],
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      engineUsed: actualEngineUsed
     };
   }
 }

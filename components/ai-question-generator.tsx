@@ -25,6 +25,7 @@ import { GATE_SUBJECTS, SUBJECT_SYLLABI, SUBJECT_TOPICS } from '@/lib/ai/gateQue
 interface GenerationResult {
   success: boolean;
   questions: any[];
+  engineUsed?: 'groq' | 'gemini' | 'openai';
   metadata?: {
     totalGenerated: number;
     bySubject: Record<string, number>;
@@ -207,6 +208,7 @@ export default function AIQuestionGenerator() {
       // Default: call server-side generator
       const response = await fetch('/api/admin/questions/generate', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -222,10 +224,19 @@ export default function AIQuestionGenerator() {
         }),
       });
       
-      const data = await response.json();
-      
+      console.debug('[handleGenerate] response status:', response.status, response.statusText);
+      const text = await response.text();
+      console.debug('[handleGenerate] raw response text:', text && text.slice ? text.slice(0, 2000) : text);
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (e) {
+        // Provide helpful error including raw response and status
+        throw new Error(`Invalid JSON from server (status=${response.status} ${response.statusText}): ${text ? text.slice(0, 2000) : '<empty response>'}`);
+      }
+
       if (!response.ok) {
-        throw new Error(data.error || `Server error: ${response.status}`);
+        throw new Error(data?.error || `Server error: ${response.status}`);
       }
       
       if (!data.success) {
@@ -275,8 +286,14 @@ export default function AIQuestionGenerator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subjects: selectedSubjects, questionCount: need, difficulty, questionTypes, syllabus: syllabus.trim() || undefined, aiEngine })
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Generation failed');
+      const text = await response.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (e) {
+        throw new Error(`Invalid JSON from server (status=${response.status}): ${text.slice(0, 1000)}`);
+      }
+      if (!response.ok) throw new Error(data?.error || 'Generation failed');
       const newQs = Array.isArray(data.questions) ? data.questions : [];
       const merged = [...(result.questions || []), ...newQs];
       let final = merged;
@@ -305,9 +322,15 @@ export default function AIQuestionGenerator() {
         })
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      
+      const text = await response.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (e) {
+        throw new Error(`Invalid JSON from server (status=${response.status}): ${text.slice(0, 1000)}`);
+      }
+      if (!response.ok) throw new Error(data?.error || 'Analysis failed');
+
       setQualityReport(data.qualityReport);
     } catch (error) {
       console.error('Error analyzing question:', error);

@@ -1,7 +1,13 @@
 import { updateSession } from "@/lib/supabase/middleware";
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  console.debug('[middleware] request:', request.method, request.nextUrl.pathname);
+  // Skip session update for API routes to avoid interfering with API methods (POST/OPTIONS)
+  if (request.nextUrl.pathname.startsWith('/api')) {
+    return NextResponse.next({ request });
+  }
+
   return await updateSession(request);
 }
 

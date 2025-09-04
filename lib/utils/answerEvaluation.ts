@@ -122,9 +122,14 @@ export function evaluateShuffledAnswers(
     let marksObtained = 0;
     if (isCorrect) {
       marksObtained = question.marks;
-    } else if (unshuffled.original_answer !== null && unshuffled.original_answer !== '') {
-      // Wrong answer penalty (only if answered)
-      marksObtained = -question.negative_marks;
+    } else {
+      // For MSQ: no negative marking; incorrect or partial selection yields 0
+      if (question.question_type === 'MSQ') {
+        marksObtained = 0;
+      } else if (unshuffled.original_answer !== null && unshuffled.original_answer !== '') {
+        // Wrong answer penalty (only if answered)
+        marksObtained = -question.negative_marks;
+      }
     }
     // No penalty for unanswered questions (marksObtained remains 0)
     
@@ -151,13 +156,21 @@ function evaluateAnswer(
   }
   
   if (questionType === 'MSQ') {
-    // Multiple select question
-    const userAnswers = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
-    const correctAnswers = correctAnswer.split(',').map(a => a.trim());
-    
-    // Check if arrays are equal (same elements, order doesn't matter)
-    return userAnswers.length === correctAnswers.length &&
-           userAnswers.every(ans => correctAnswers.includes(ans.trim()));
+    // Multiple select question.
+    // Support user answer as an array or comma-separated string. Normalize to lowercase trimmed tokens.
+    let userAnswersArr: string[] = [];
+    if (Array.isArray(userAnswer)) userAnswersArr = userAnswer as string[];
+    else if (typeof userAnswer === 'string' && userAnswer.includes(',')) userAnswersArr = userAnswer.split(',');
+    else userAnswersArr = [String(userAnswer)];
+
+    const normalize = (s: string) => s.trim().toLowerCase();
+    const normalizedUser = userAnswersArr.map(normalize).filter(Boolean);
+    const normalizedCorrect = correctAnswer.split(',').map(normalize).filter(Boolean);
+
+    // Exact set equality required (order-insensitive)
+    if (normalizedUser.length !== normalizedCorrect.length) return false;
+    const correctSet = new Set(normalizedCorrect);
+    return normalizedUser.every(a => correctSet.has(a));
   } else {
     // MCQ or NAT
     const userAns = Array.isArray(userAnswer) ? userAnswer[0] : userAnswer;
