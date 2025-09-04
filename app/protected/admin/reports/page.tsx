@@ -155,19 +155,23 @@ function extractDepartment(email: string): string {
 }
 
 // Function to generate full report CSV with individual test scores
-function generateFullReportCSVWithIndividualScores(allTestReports: any[], tests: any[]): string {
+function generateFullReportCSVWithIndividualScores(allTestReports: any[], tests: any[], departmentFilter: string = 'all'): string {
   // Collect all unique students from all test reports
   const studentsMap = new Map();
   
   allTestReports.forEach(testData => {
     testData.reports.forEach((report: StudentReport) => {
       if (!studentsMap.has(report.email)) {
-        studentsMap.set(report.email, {
-          email: report.email,
-          full_name: report.full_name || stripDomain(report.email),
-          reg_no: report.reg_no || 'N/A',
-          dept: extractDepartment(report.email)
-        });
+        const dept = extractDepartment(report.email);
+        // Filter by department if specified
+        if (departmentFilter === 'all' || dept === departmentFilter) {
+          studentsMap.set(report.email, {
+            email: report.email,
+            full_name: report.full_name || stripDomain(report.email),
+            reg_no: report.reg_no || 'N/A',
+            dept: dept
+          });
+        }
       }
     });
   });
@@ -176,11 +180,14 @@ function generateFullReportCSVWithIndividualScores(allTestReports: any[], tests:
   const testScoresMap = new Map();
   allTestReports.forEach(testData => {
     testData.reports.forEach((report: StudentReport) => {
-      const key = `${report.email}_${testData.testId}`;
-      testScoresMap.set(key, {
-        score: report.total_score || 0,
-        totalMarks: report.total_possible_marks || 100
-      });
+      // Only include scores for students in the filtered department
+      if (studentsMap.has(report.email)) {
+        const key = `${report.email}_${testData.testId}`;
+        testScoresMap.set(key, {
+          score: report.total_score || 0,
+          totalMarks: report.total_possible_marks || 100
+        });
+      }
     });
   });
 
@@ -293,6 +300,7 @@ const ViewReportsPage = () => {
   const [tests, setTests] = useState<Array<{ id: string; title: string }>>([]);
   const [downloadingCSV, setDownloadingCSV] = useState(false);
   const [downloadingFullReport, setDownloadingFullReport] = useState(false);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const PAGE_SIZE = 50;
@@ -567,20 +575,21 @@ const ViewReportsPage = () => {
       
       const allTestReports = await Promise.all(testReportsPromises);
       
-      // Generate CSV content with individual test scores
-      let csvContent = generateFullReportCSVWithIndividualScores(allTestReports, testsData);
+      // Generate CSV content with individual test scores and department filter
+      let csvContent = generateFullReportCSVWithIndividualScores(allTestReports, testsData, selectedDepartment);
       
       // Add BOM for proper Excel encoding
       const BOM = '\uFEFF';
       csvContent = BOM + csvContent;
       
-      // Download the CSV
+      // Download the CSV with department-specific filename
+      const deptSuffix = selectedDepartment !== 'all' ? `-${selectedDepartment}` : '';
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `full-student-report-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `full-student-report${deptSuffix}-${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -623,20 +632,47 @@ const ViewReportsPage = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold mb-2">Full Student Report </h2>
+                <h2 className="text-xl font-semibold mb-2">Full Student Report</h2>
                 <p className="text-gray-400 text-sm">
                     CSV report with all students test scores with Respective Department!
                 </p>
               </div>
-              <Button
-                onClick={handleDownloadFullReport}
-                disabled={downloadingFullReport}
-                className="bg-green-600 hover:bg-green-700 text-white border-green-500 min-w-[100px]"
-                title="Download comprehensive report with all students and test scores"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {downloadingFullReport ? 'Generating...' : 'View'}
-              </Button>
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col">
+                  
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="border border-gray-600 rounded-lg px-4 py-2.5 bg-gray-800 text-white text-sm min-w-[160px] focus:border-green-500 focus:ring-2 focus:ring-green-500/20 focus:outline-none transition-all duration-200 hover:border-gray-500"
+                    aria-label="Select department to filter"
+                  >
+                    <option value="all">All Departments</option>
+                    <option value="CSE">CSE</option>
+                    <option value="ECE">ECE</option>
+                    <option value="EEE">EEE</option>
+                    <option value="MECH">MECH</option>
+                    <option value="CIVIL">CIVIL</option>
+                    <option value="IT">IT</option>
+                    <option value="BMECH">BMECH</option>
+                    <option value="CHEM">CHEM</option>
+                    <option value="AIML">AIML</option>
+                    <option value="AIDS">AIDS</option>
+                    <option value="CSBS">CSBS</option>
+                    <option value="CYBER">CYBER</option>
+                  </select>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <Button
+                    onClick={handleDownloadFullReport}
+                    disabled={downloadingFullReport}
+                    className="bg-green-600 hover:bg-green-700 text-white border-green-500 min-w-[100px] h-[42px] transition-all duration-200"
+                    title="Download comprehensive report with all students and test scores"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    {downloadingFullReport ? 'Generating...' : 'View'}
+                  </Button>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
