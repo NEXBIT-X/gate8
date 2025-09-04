@@ -539,7 +539,20 @@ const ViewReportsPage = () => {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `student-reports-${selectedTest !== 'all' ? selectedTest : 'all'}-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      // Generate filename based on selected test with date
+      let fileName;
+      const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD format
+      if (selectedTest !== 'all') {
+        const selectedTestTitle = tests.find(t => t.id === selectedTest)?.title || 'SelectedTest';
+        // Clean the test title for filename use
+        const cleanTitle = selectedTestTitle.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+        fileName = `${cleanTitle}-Report-${currentDate}.csv`;
+      } else {
+        fileName = `AllTests-Report-${currentDate}.csv`;
+      }
+      a.download = fileName;
+      
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -582,14 +595,17 @@ const ViewReportsPage = () => {
       const BOM = '\uFEFF';
       csvContent = BOM + csvContent;
       
-      // Download the CSV with department-specific filename
-      const deptSuffix = selectedDepartment !== 'all' ? `-${selectedDepartment}` : '';
+      // Download the CSV with department-specific filename with date
+      const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD format
+      const fileName = selectedDepartment !== 'all' ? 
+        `${selectedDepartment}-TestReport-${currentDate}.csv` : 
+        `AllDepartments-TestReport-${currentDate}.csv`;
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `full-student-report${deptSuffix}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
