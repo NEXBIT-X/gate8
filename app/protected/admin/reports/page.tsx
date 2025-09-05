@@ -6,7 +6,7 @@ import ReportDetailsModal from '@/components/report-details-modal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, TrendingUp, Users, Target, BookOpen, BarChart3, Filter, RefreshCw } from 'lucide-react';
+import { Download, TrendingUp, Users, Target, BookOpen, BarChart3, Filter, RefreshCw, ArrowUpAZ, Trophy } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -303,6 +303,7 @@ const ViewReportsPage = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'score' | 'default'>('default');
   const PAGE_SIZE = 50;
 
   // Chart configuration with neutral colors
@@ -517,46 +518,100 @@ const ViewReportsPage = () => {
   const memoPerformanceData = React.useMemo(() => getPerformanceDistributionData(), [getPerformanceDistributionData]);
   const memoTestWiseData = React.useMemo(() => getTestWisePerformanceData(), [getTestWisePerformanceData]);
   const memoTimeData = React.useMemo(() => getTimeDistributionData(), [getTimeDistributionData]);
-  // Filter reports client-side for quick searching by name, email or test title
-  const filteredReports = (analyticsData?.reports || []).filter(r => {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return (r.full_name || r.email || r.test_title || '').toLowerCase().includes(q);
-  });
+  // Filter and sort reports client-side for quick searching by name, email or test title
+  const filteredReports = React.useMemo(() => {
+    let reports = (analyticsData?.reports || []).filter(r => {
+      if (!query) return true;
+      const q = query.toLowerCase();
+      return (r.full_name || r.email || r.test_title || '').toLowerCase().includes(q);
+    });
+
+    // Apply sorting
+    if (sortBy === 'name') {
+      reports = reports.sort((a, b) => {
+        const nameA = (a.full_name || stripDomain(a.email)).toLowerCase();
+        const nameB = (b.full_name || stripDomain(b.email)).toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+    } else if (sortBy === 'score') {
+      reports = reports.sort((a, b) => {
+        // Sort by percentage descending (highest to lowest)
+        return b.percentage - a.percentage;
+      });
+    }
+
+    return reports;
+  }, [analyticsData?.reports, query, sortBy]);
+  
   const pagedFilteredReports = filteredReports.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleDownloadCSV = async () => {
     try {
       setDownloadingCSV(true);
-      const response = await fetch(`/api/admin/reports/csv${selectedTest !== 'all' ? `?testId=${selectedTest}` : ''}`);
       
-      if (!response.ok) {
-        throw new Error('Failed to download CSV');
+      // Use the same filtered and sorted reports as displayed in the table
+      const reportsToDownload = filteredReports;
+      
+      if (reportsToDownload.length === 0) {
+        alert('No data to download');
+        return;
       }
-
-      const blob = await response.blob();
+      
+      // Generate CSV content manually with the same order as displayed
+      let csvContent = 'S.No,Name,Registration No,Email,Department,Test,Score,Total Marks,Percentage,Correct,Incorrect,Unanswered,Time Taken (min),Completed At\n';
+      
+      reportsToDownload.forEach((report, index) => {
+        const studentName = report.full_name || stripDomain(report.email);
+        const regNo = report.reg_no || 'N/A';
+        const dept = extractDepartment(report.email);
+        const completedAt = new Date(report.completed_at).toLocaleString();
+        
+        csvContent += `${index + 1},`;
+        csvContent += `${escapeCsvValue(studentName)},`;
+        csvContent += `${escapeCsvValue(regNo)},`;
+        csvContent += `${escapeCsvValue(report.email)},`;
+        csvContent += `${escapeCsvValue(dept)},`;
+        csvContent += `${escapeCsvValue(report.test_title)},`;
+        csvContent += `${report.total_score},`;
+        csvContent += `${report.total_possible_marks},`;
+        csvContent += `${report.percentage.toFixed(2)}%,`;
+        csvContent += `${report.correct_answers},`;
+        csvContent += `${report.incorrect_answers},`;
+        csvContent += `${report.unanswered_questions},`;
+        csvContent += `${report.time_taken_minutes},`;
+        csvContent += `${escapeCsvValue(completedAt)}\n`;
+      });
+      
+      // Add BOM for proper Excel encoding
+      const BOM = '\uFEFF';
+      csvContent = BOM + csvContent;
+      
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
       
-      // Generate filename based on selected test with date
+      // Generate filename based on selected test and sorting with date
       let fileName;
-      const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD format
+      const currentDate = new Date().toISOString().slice(0, 10);
+      const sortSuffix = sortBy === 'name' ? '-AlphabeticalSort' : sortBy === 'score' ? '-RankSort' : '';
+      
       if (selectedTest !== 'all') {
         const selectedTestTitle = tests.find(t => t.id === selectedTest)?.title || 'SelectedTest';
-        // Clean the test title for filename use
         const cleanTitle = selectedTestTitle.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
-        fileName = `${cleanTitle}-Report-${currentDate}.csv`;
+        fileName = `${cleanTitle}-Report${sortSuffix}-${currentDate}.csv`;
       } else {
-        fileName = `AllTests-Report-${currentDate}.csv`;
+        fileName = `AllTests-Report${sortSuffix}-${currentDate}.csv`;
       }
-      a.download = fileName;
       
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      
     } catch (error) {
       console.error('Error downloading CSV:', error);
       alert('Failed to download CSV file');
@@ -923,13 +978,37 @@ const ViewReportsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-4">
-              <input
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                placeholder="Search student, email or test..."
-                className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-2 text-white w-72"
-                aria-label="Search reports"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                  placeholder="Search student, email or test..."
+                  className="bg-gray-800 border border-gray-700 text-sm rounded-lg px-3 py-2 text-white w-72"
+                  aria-label="Search reports"
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={sortBy === 'name' ? 'default' : 'outline'}
+                    onClick={() => setSortBy(sortBy === 'name' ? 'default' : 'name')}
+                    className="flex items-center gap-2"
+                    title="Sort alphabetically by student name"
+                  >
+                    <ArrowUpAZ className="h-4 w-4" />
+                    A to Z
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={sortBy === 'score' ? 'default' : 'outline'}
+                    onClick={() => setSortBy(sortBy === 'score' ? 'default' : 'score')}
+                    className="flex items-center gap-2"
+                    title="Sort by score (highest to lowest)"
+                  >
+                    <Trophy className="h-4 w-4" />
+                    Rank
+                  </Button>
+                </div>
+              </div>
               <div className="text-sm text-gray-400">Showing {filteredReports.length} results</div>
             </div>
             <div className="overflow-x-auto">
