@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { User, LogOut } from "lucide-react";
 import {
   DropdownMenu,
@@ -17,6 +17,10 @@ interface ProfileDropdownProps {
 
 export function ProfileDropdown({ displayName }: ProfileDropdownProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  
+  // Check if user is currently in a test
+  const isInTest = pathname.includes('/protected/test/') && !pathname.includes('/result');
 
   const logout = async () => {
     const supabase = createClient();
@@ -28,6 +32,21 @@ export function ProfileDropdown({ displayName }: ProfileDropdownProps) {
     router.push("/protected/dash/profile");
   };
 
+  // If in test, render a disabled button
+  if (isInTest) {
+    return (
+      <Button 
+        variant="outline" 
+        className="flex items-center gap-2 opacity-50 cursor-not-allowed" 
+        disabled
+        title="Profile access is disabled during tests"
+      >
+        <User className="h-4 w-4" />
+      </Button>
+    );
+  }
+
+  // Normal dropdown when not in test
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

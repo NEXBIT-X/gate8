@@ -535,8 +535,8 @@ const ViewReportsPage = () => {
       });
     } else if (sortBy === 'score') {
       reports = reports.sort((a, b) => {
-        // Sort by percentage descending (highest to lowest)
-        return b.percentage - a.percentage;
+        // Sort by total_score descending (highest to lowest)
+        return b.total_score - a.total_score;
       });
     }
 
