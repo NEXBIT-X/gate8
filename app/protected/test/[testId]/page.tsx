@@ -397,7 +397,7 @@ const TestInterface = () => {
                     step="any"
                     value={selectedAnswers[question.id] || ''}
                     onChange={(e) => handleAnswerSelect(question.id, e.target.value, 'NAT')}
-                    className="px-3 py-2 bg-gray-800 border border-gray-600 rounded focus:border-blue-500 focus:outline-none w-32 select-auto"
+                    className="px-3 py-2 card border border-gray-600 rounded focus:border-blue-500 focus:outline-none w-32 select-auto"
                     style={{userSelect: 'auto', WebkitUserSelect: 'auto', MozUserSelect: 'auto'} as React.CSSProperties}
                     placeholder="Enter number"
                 />
@@ -426,7 +426,7 @@ const TestInterface = () => {
                     <p className="text-muted-foreground mb-4">{error}</p>
                     <button 
                         onClick={() => router.push('/protected/dash')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        className="px-4 py-2 bg-blue-600  rounded hover:bg-blue-700 transition-colors"
                     >
                         Back to Dashboard
                     </button>
@@ -446,14 +446,14 @@ const TestInterface = () => {
         });
         
         return (
-            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-                <div className="max-w-md mx-auto p-6 bg-gray-800 rounded-lg border border-gray-700 shadow-lg text-center">
+            <div className="min-h-screen card border-border flex items-center justify-center">
+                <div className="max-w-md mx-auto p-6 card rounded-lg border border-gray-700 shadow-lg text-center">
                     <div className="w-16 h-16 mx-auto mb-4 bg-red-900/30 rounded-full flex items-center justify-center">
                         <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <h3 className="text-lg font-semibold mb-2 text-white">Test Loading Issue</h3>
+                    <h3 className="text-lg font-semibold mb-2 ">Test Loading Issue</h3>
                     <p className="text-gray-300 mb-4">
                         {!test ? 'Test data not loaded' : 
                          !attempt ? 'Test attempt not created' :
@@ -466,7 +466,7 @@ const TestInterface = () => {
                     </p>
                     <button 
                         onClick={() => router.push('/protected/dash')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        className="px-4 py-2 bg-blue-600  rounded hover:bg-blue-700 transition-colors"
                     >
                         Back to Dashboard
                     </button>
@@ -478,7 +478,7 @@ const TestInterface = () => {
     const currentQuestion = test.questionDetails[currentQuestionIndex];
     if (!currentQuestion) {
         return (
-            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+            <div className="min-h-screen card border-border flex items-center justify-center">
                 <p>Question not found</p>
             </div>
         );
@@ -503,160 +503,159 @@ const TestInterface = () => {
                 onEndTest={handleViolationEndTest}
             />
 
-            <div className="min-h-screen bg-gray-900 text-white flex flex-col lg:flex-row">
-            {/* Main Panel */}
-            <div className="flex-1 flex flex-col border-b lg:border-b-0 lg:border-r border-gray-800 min-w-0">
-                {/* Top Bar mimicking GATE */}
-                <div className="bg-gray-800 border-b border-gray-700 px-4 py-2 flex items-center justify-between text-[11px] gap-4">
-                    <div className="flex items-center gap-4">
-                        <span className="px-2 py-1 bg-blue-600 text-white rounded font-semibold">Section 1</span>
-                        <div className="hidden md:flex items-center gap-4 text-gray-300">
-                            <span>Question Type: <strong>{currentQuestion.question_type}</strong></span>
-                            <span>Marks: <span className="text-green-400">+{currentQuestion.marks}</span>{currentQuestion.negative_marks > 0 && <span className="text-red-400"> / -{currentQuestion.negative_marks}</span>}</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-8">
-                        <button
-                            onClick={() => setShowMobilePalette(true)}
-                            className="lg:hidden px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600"
-                        >Palette</button>
-                        <div className="text-right">
-                            <div className="font-mono text-lg text-red-400">{formatTime(timeRemaining)}</div>
-                            <div className="text-[10px] text-gray-400">Time Left</div>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px]">
-                            {/* Fullscreen Status Indicator */}
-                            <div className={`w-2 h-2 rounded-full ${securityState.isFullscreen ? 'bg-green-500' : 'bg-red-500'}`} 
-                                 title={securityState.isFullscreen ? 'Fullscreen Active' : 'Fullscreen Inactive'}></div>
-                            <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center font-semibold">U</div>
-                            <div className="hidden sm:block text-right leading-tight">
-                                <div className="font-medium">Candidate</div>
-                                <div className="text-gray-400">Practice</div>
+            <div className="min-h-screen card border-border flex flex-col lg:flex-row bg-background">
+                {/* Main Panel */}
+                <div className="flex-1 flex flex-col border-b lg:border-b-0 lg:border-r border-border min-w-0 card bg-card">
+                    {/* Top Bar mimicking GATE */}
+                    <div className="card border-b border-border px-4 py-2 flex items-center justify-between text-xs gap-4 bg-card">
+                        <div className="flex items-center gap-4">
+                            <span className="px-2 py-1 bg-blue-600 rounded font-semibold text-white">Section 1</span>
+                            <div className="hidden md:flex items-center gap-4">
+                                <span>Question Type: <strong>{currentQuestion.question_type}</strong></span>
+                                <span>Marks: <span className="">+{currentQuestion.marks}</span>{currentQuestion.negative_marks > 0 && <span> / -{currentQuestion.negative_marks}</span>}</span>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* Question Body */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 select-none">
-                    <div className="max-w-none">
-                        <h2 className="font-semibold mb-4 text-sm select-none">Question No. {currentQuestionIndex + 1}</h2>
-                        <div className="mb-6 text-sm leading-relaxed select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
-                            {renderQuestionText(currentQuestion.question)}
-                        </div>
-                        <div className="select-none" style={{userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none'} as React.CSSProperties}>
-                            {renderQuestion(currentQuestion)}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Bottom Action Bar */}
-                <div className="bg-gray-800 border-t border-gray-700 p-3 flex flex-wrap gap-2 justify-between sticky bottom-0">
-                    <div className="flex flex-wrap gap-2 text-xs">
-                        <button
-                            onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-                            disabled={currentQuestionIndex === 0}
-                            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded"
-                        >Previous</button>
-                        <button
-                            onClick={() => {
-                                // Save already done on selection. Just advance.
-                                setCurrentQuestionIndex(i => Math.min(test.questionDetails.length - 1, i + 1));
-                            }}
-                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 rounded"
-                        >Save & Next</button>
-                        <button
-                            onClick={() => {
-                                handleMarkForReview(currentQuestion.id);
-                                setCurrentQuestionIndex(i => Math.min(test.questionDetails.length - 1, i + 1));
-                            }}
-                            className="px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded"
-                        >Mark for Review & Next</button>
-                        <button
-                            onClick={() => {
-                                handleMarkForReview(currentQuestion.id);
-                                setCurrentQuestionIndex(i => Math.min(test.questionDetails.length - 1, i + 1));
-                            }}
-                            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded"
-                        >Save & Mark for Review & Next</button>
-                        <button
-                            onClick={() => clearResponse(currentQuestion.id)}
-                            className="px-3 py-2 bg-yellow-600 hover:bg-yellow-700 rounded text-black font-medium"
-                        >Clear Response</button>
-                    </div>
-                    <div>
-                        {currentQuestionIndex === test.questionDetails.length - 1 && (
+                        <div className="flex items-center gap-8">
                             <button
-                                onClick={handleCompleteTest}
-                                disabled={isSubmitting}
-                                className="px-5 py-2 bg-red-600 hover:bg-red-700 rounded font-semibold disabled:opacity-50"
-                            >{isSubmitting ? 'Submitting...' : 'Submit'}</button>
-                        )}
+                                onClick={() => setShowMobilePalette(true)}
+                                className="lg:hidden px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-border"
+                            >Palette</button>
+                            <div className="text-right">
+                                <div className="font-mono text-lg">{formatTime(timeRemaining)}</div>
+                                <div className="text-[10px]">Time Left</div>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                                {/* Fullscreen Status Indicator */}
+                                <div className={`w-2 h-2 rounded-full ${securityState.isFullscreen ? 'bg-green-500' : 'bg-red-500'}`}
+                                     title={securityState.isFullscreen ? 'Fullscreen Active' : 'Fullscreen Inactive'}></div>
+                                <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center font-semibold">U</div>
+                                <div className="hidden sm:block text-right leading-tight">
+                                    <div className="font-medium">Candidate</div>
+                                    <div>Practice</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Right Palette Panel (desktop) */}
-            <div className="hidden lg:flex w-80 bg-gray-800 flex-col">
-                <div className="p-4 border-b border-gray-700 space-y-3 text-[11px]">
-                    <h3 className="font-semibold tracking-wide text-xs">Question Palette</h3>
-                    <div className="grid grid-cols-5 gap-2">
-                        {test.questionDetails.map((q, index) => {
-                            const status = getQuestionStatus(q.id);
-                            return (
+                    {/* Question Body */}
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 select-none card bg-card">
+                        <div className="max-w-none">
+                            <h2 className="font-semibold mb-4 text-sm">Question No. {currentQuestionIndex + 1}</h2>
+                            <div className="mb-6 text-sm leading-relaxed">
+                                {renderQuestionText(currentQuestion.question)}
+                            </div>
+                            <div>
+                                {renderQuestion(currentQuestion)}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom Action Bar */}
+                    <div className="card border-t border-border p-3 flex flex-wrap gap-2 justify-between sticky bottom-0 bg-card">
+                        <div className="flex flex-wrap gap-2 text-xs">
+                            <button
+                                onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+                                disabled={currentQuestionIndex === 0}
+                                className="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 rounded"
+                            >Previous</button>
+                            <button
+                                onClick={() => {
+                                    setCurrentQuestionIndex(i => Math.min(test.questionDetails.length - 1, i + 1));
+                                }}
+                                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
+                            >Save & Next</button>
+                            <button
+                                onClick={() => {
+                                    handleMarkForReview(currentQuestion.id);
+                                    setCurrentQuestionIndex(i => Math.min(test.questionDetails.length - 1, i + 1));
+                                }}
+                                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded"
+                            >Mark for Review & Next</button>
+                            <button
+                                onClick={() => {
+                                    handleMarkForReview(currentQuestion.id);
+                                    setCurrentQuestionIndex(i => Math.min(test.questionDetails.length - 1, i + 1));
+                                }}
+                                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                            >Save & Mark for Review & Next</button>
+                            <button
+                                onClick={() => clearResponse(currentQuestion.id)}
+                                className="px-3 py-2 bg-yellow-400 dark:bg-yellow-600 hover:bg-yellow-500 dark:hover:bg-yellow-700 rounded font-medium"
+                            >Clear Response</button>
+                        </div>
+                        <div>
+                            {currentQuestionIndex === test.questionDetails.length - 1 && (
                                 <button
-                                    key={q.id}
-                                    onClick={() => setCurrentQuestionIndex(index)}
-                                    className={`h-9 rounded text-xs font-semibold flex items-center justify-center transition-colors border border-gray-700 ${index === currentQuestionIndex ? 'ring-2 ring-white' : ''} ${statusStyles[status]}`}
-                                >{index + 1}</button>
-                            );
-                        })}
-                    </div>
-                </div>
-                <div className="p-4 border-b border-gray-700 text-[11px] space-y-2">
-                    <h4 className="font-semibold">Legend</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                        <Legend color={statusStyles['answered']} label={`Answered (${counts.answered})`} />
-                        <Legend color={statusStyles['not-answered']} label={`Not Answered (${counts.notAnswered})`} />
-                        <Legend color={statusStyles['marked']} label={`Marked (${counts.marked})`} />
-                        <Legend color={statusStyles['answered-marked']} label={`Answered & Marked (${counts.answeredMarked})`} />
-                        <Legend color={statusStyles['not-visited']} label={`Not Visited (${counts.notVisited})`} />
-                    </div>
-                </div>
-                <div className="mt-auto p-4 text-center text-[10px] text-gray-400">GATE Style Mock Interface</div>
-            </div>
-            {/* Mobile Palette Overlay */}
-            {showMobilePalette && (
-                <div className="lg:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex">
-                    <div className="ml-auto w-full max-w-sm bg-gray-800 h-full flex flex-col">
-                        <div className="p-4 border-b border-gray-700 flex items-center justify-between text-xs">
-                            <h3 className="font-semibold">Question Palette</h3>
-                            <button onClick={()=>setShowMobilePalette(false)} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600">Close</button>
-                        </div>
-                        <div className="p-4 space-y-4 overflow-y-auto">
-                            <div className="grid grid-cols-6 gap-2">
-                                {test.questionDetails.map((q, index) => {
-                                    const status = getQuestionStatus(q.id);
-                                    return (
-                                        <button
-                                            key={q.id}
-                                            onClick={() => { setCurrentQuestionIndex(index); setShowMobilePalette(false); }}
-                                            className={`h-9 rounded text-xs font-semibold flex items-center justify-center transition-colors border border-gray-700 ${index === currentQuestionIndex ? 'ring-2 ring-white' : ''} ${statusStyles[status]}`}
-                                        >{index + 1}</button>
-                                    );
-                                })}
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-[11px]">
-                                <Legend color={statusStyles['answered']} label={`Answered (${counts.answered})`} />
-                                <Legend color={statusStyles['not-answered']} label={`Not Answered (${counts.notAnswered})`} />
-                                <Legend color={statusStyles['marked']} label={`Marked (${counts.marked})`} />
-                                <Legend color={statusStyles['answered-marked']} label={`Answered & Marked (${counts.answeredMarked})`} />
-                                <Legend color={statusStyles['not-visited']} label={`Not Visited (${counts.notVisited})`} />
-                            </div>
+                                    onClick={handleCompleteTest}
+                                    disabled={isSubmitting}
+                                    className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-semibold disabled:opacity-50"
+                                >{isSubmitting ? 'Submitting...' : 'Submit'}</button>
+                            )}
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Right Palette Panel (desktop) */}
+                <div className="hidden lg:flex w-80 card flex-col bg-card">
+                    <div className="p-4 border-b border-border space-y-3 text-xs">
+                        <h3 className="font-semibold tracking-wide text-xs">Question Palette</h3>
+                        <div className="grid grid-cols-5 gap-2">
+                            {test.questionDetails.map((q, index) => {
+                                const status = getQuestionStatus(q.id);
+                                return (
+                                    <button
+                                        key={q.id}
+                                        onClick={() => setCurrentQuestionIndex(index)}
+                                        className={`h-9 rounded text-xs font-semibold flex items-center justify-center transition-colors border border-border ${index === currentQuestionIndex ? 'ring-2 ring-blue-500' : ''} ${statusStyles[status]}`}
+                                    >{index + 1}</button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div className="p-4 border-b border-border text-xs space-y-2">
+                        <h4 className="font-semibold">Legend</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Legend color={statusStyles['answered']} label={`Answered (${counts.answered})`} />
+                            <Legend color={statusStyles['not-answered']} label={`Not Answered (${counts.notAnswered})`} />
+                            <Legend color={statusStyles['marked']} label={`Marked (${counts.marked})`} />
+                            <Legend color={statusStyles['answered-marked']} label={`Answered & Marked (${counts.answeredMarked})`} />
+                            <Legend color={statusStyles['not-visited']} label={`Not Visited (${counts.notVisited})`} />
+                        </div>
+                    </div>
+                    <div className="mt-auto p-4 text-center text-[10px]">GATE Style Mock Interface</div>
+                </div>
+                {/* Mobile Palette Overlay */}
+                {showMobilePalette && (
+                    <div className="lg:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex">
+                        <div className="ml-auto w-full max-w-sm card h-full flex flex-col bg-card">
+                            <div className="p-4 border-b border-border flex items-center justify-between text-xs">
+                                <h3 className="font-semibold">Question Palette</h3>
+                                <button onClick={()=>setShowMobilePalette(false)} className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">Close</button>
+                            </div>
+                            <div className="p-4 space-y-4 overflow-y-auto">
+                                <div className="grid grid-cols-6 gap-2">
+                                    {test.questionDetails.map((q, index) => {
+                                        const status = getQuestionStatus(q.id);
+                                        return (
+                                            <button
+                                                key={q.id}
+                                                onClick={() => { setCurrentQuestionIndex(index); setShowMobilePalette(false); }}
+                                                className={`h-9 rounded text-xs font-semibold flex items-center justify-center transition-colors border border-border ${index === currentQuestionIndex ? 'ring-2 ring-blue-500' : ''} ${statusStyles[status]}`}
+                                            >{index + 1}</button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <Legend color={statusStyles['answered']} label={`Answered (${counts.answered})`} />
+                                    <Legend color={statusStyles['not-answered']} label={`Not Answered (${counts.notAnswered})`} />
+                                    <Legend color={statusStyles['marked']} label={`Marked (${counts.marked})`} />
+                                    <Legend color={statusStyles['answered-marked']} label={`Answered & Marked (${counts.answeredMarked})`} />
+                                    <Legend color={statusStyles['not-visited']} label={`Not Visited (${counts.notVisited})`} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );
