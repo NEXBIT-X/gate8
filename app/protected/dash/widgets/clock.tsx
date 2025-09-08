@@ -8,7 +8,7 @@ function getUnitValue(unit: string): number {
     const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
     const istTime = new Date(utc + (5.5 * 3600000)); // IST is UTC +5:30
     
-    if (unit === "hour" || unit === "hours") return istTime.getHours(); // 24-hour format
+    if (unit === "hour" || unit === "hours") return istTime.getHours() % 12 || 12; // 12-hour format
     if (unit === "minute" || unit === "minutes") return istTime.getMinutes();
     if (unit === "second" || unit === "seconds") return istTime.getSeconds();
     return 0;
