@@ -63,18 +63,18 @@ function Flipper({ unit }: { unit: string }) {
     // Show placeholder until hydrated to prevent mismatch
     if (!isHydrated) {
         return (
-            <div className={`relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-lg ${textColor} ${bgMain} ${shadowColor} text-4xl md:text-5xl lg:text-6xl`}>
-                <div className={`flex relative justify-between w-full h-1/2 overflow-hidden ${bgUpper} items-end rounded-t-lg`}>
-                    <div className={`${sideNotchColor} h-4 w-2 md:h-6 md:w-3 rounded-r-full translate-y-1/2`}></div>
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-lg text-white bg-black shadow-lg text-4xl md:text-5xl lg:text-6xl">
+                <div className="flex relative justify-between w-full h-1/2 overflow-hidden bg-neutral-800 items-end rounded-t-lg">
+                    <div className="bg-black h-4 w-2 md:h-6 md:w-3 rounded-r-full translate-y-1/2"></div>
                     <span className="translate-y-1/2">--</span>
-                    <div className={`${sideNotchColor} h-4 w-2 md:h-6 md:w-3 rounded-l-full translate-y-1/2`}></div>
+                    <div className="bg-black h-4 w-2 md:h-6 md:w-3 rounded-l-full translate-y-1/2"></div>
                 </div>
-                <div className={`flex relative justify-between w-full h-1/2 overflow-hidden ${bgLower} items-start rounded-b-lg ${textColor}`}>
-                    <div className={`${sideNotchColor} h-4 w-2 md:h-6 md:w-3 rounded-r-full -translate-y-1/2`}></div>
+                <div className="flex relative justify-between w-full h-1/2 overflow-hidden bg-neutral-700 items-start rounded-b-lg text-white">
+                    <div className="bg-black h-4 w-2 md:h-6 md:w-3 rounded-r-full -translate-y-1/2"></div>
                     <span className="-translate-y-1/2">--</span>
-                    <div className={`${sideNotchColor} h-4 w-2 md:h-6 md:w-3 rounded-l-full -translate-y-1/2`}></div>
+                    <div className="bg-black h-4 w-2 md:h-6 md:w-3 rounded-l-full -translate-y-1/2"></div>
                 </div>
-                <div className={`absolute top-1/2 h-px ${dividerColor} left-0 right-0 z-10`}></div>
+                <div className="absolute top-1/2 h-px bg-black left-0 right-0 z-10"></div>
             </div>
         );
     }
@@ -131,8 +131,26 @@ function Flipper({ unit }: { unit: string }) {
 }
 
 function Clock({ unit }: { unit: string }) {
-    const { theme } = useTheme();
-    const isLight = theme === 'light';
+    const { theme, resolvedTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+    
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+    
+    // Prevent hydration mismatch by using default styling until mounted
+    if (!mounted) {
+        return (
+            <div className="flex flex-col items-center justify-center gap-5">
+                <Flipper unit={unit} />
+                <div className="uppercase text-gray-400 tracking-[3px] sm:text-lg sm:tracking-[4px] md:tracking-[6px] text-[8px]">
+                    {unit}
+                </div>
+            </div>
+        );
+    }
+    
+    const isLight = theme === 'light' || resolvedTheme === 'light';
     const labelColor = isLight ? 'text-gray-600' : 'text-gray-400';
     
     return (
