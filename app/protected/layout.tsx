@@ -1,13 +1,11 @@
-import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
 import { ConditionalFooter } from "@/components/conditional-footer";
 import { ConditionalBreadcrumbs } from "@/components/conditional-breadcrumbs";
-import { hasEnvVars } from "@/lib/utils";
 import { ConditionalLogo } from "../../components/conditional-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
 
-export default function ProtectedLayout({ 
+export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -21,7 +19,7 @@ export default function ProtectedLayout({
               <div className="flex gap-5 items-center font-semibold">
                 <ConditionalLogo />
               </div>
-              {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
+              <AuthButton />
             </div>
           </div>
         </nav>

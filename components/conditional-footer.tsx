@@ -1,6 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
-import { CoolFooter } from "./cool-footer";
+import CoolFooter from "./graphy-footer";
 
 export function ConditionalFooter() {
   const pathname = usePathname();
